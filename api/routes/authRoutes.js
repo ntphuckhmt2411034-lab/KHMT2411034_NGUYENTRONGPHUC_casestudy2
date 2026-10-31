@@ -2,6 +2,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const jwt = require('jsonwebtoken');
 
 const router = express.Router();
 
@@ -87,3 +88,79 @@ router.post('/register', async (req, res) => {
 });
 
 module.exports = router;
+// A2 - Dang nhap bang email va mat khau
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+
+    // Kiem tra du lieu dau vao
+    if (
+      typeof email !== 'string' ||
+      typeof password !== 'string' ||
+      !email.trim() ||
+      !password
+    ) {
+      return res.status(400).json({
+        message: 'Vui lòng nhập email và mật khẩu'
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Tim tai khoan trong MongoDB
+    const user = await User.findOne({
+      email: normalizedEmail
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        message: 'Email hoặc mật khẩu không chính xác'
+      });
+    }
+
+    // So sanh mat khau voi bcrypt
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      user.passwordHash
+    );
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        message: 'Email hoặc mật khẩu không chính xác'
+      });
+    }
+
+    // Kiem tra khoa JWT
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET chua duoc cau hinh');
+      return res.status(500).json({
+        message: 'Máy chủ chưa được cấu hình đầy đủ'
+      });
+    }
+
+    // Tao JWT co thoi han 1 ngay
+    const token = jwt.sign(
+      { userId: user._id.toString() },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d', algorithm: 'HS256' }
+    );
+
+    // Tra ve ket qua dang nhap
+    return res.status(200).json({
+      message: 'Đăng nhập thành công',
+      token,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        avatarUrl: user.avatarUrl
+      }
+    });
+  } catch (error) {
+    console.error('Loi dang nhap:', error.message);
+
+    return res.status(500).json({
+      message: 'Lỗi máy chủ khi đăng nhập'
+    });
+  }
+});
