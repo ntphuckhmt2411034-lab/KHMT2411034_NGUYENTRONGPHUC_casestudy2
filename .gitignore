@@ -1,0 +1,24 @@
+
+# Backend secrets
+api/.env
+
+# Node.js
+**/node_modules/
+**/.env
+**/.env.*
+!**/.env.example
+
+# Flutter
+**/.dart_tool/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+
+# Android Studio
+.idea/caches/
+.idea/libraries/
+.idea/deviceManager.xml
+.idea/*.iml
+
+# Local files
+*.log
