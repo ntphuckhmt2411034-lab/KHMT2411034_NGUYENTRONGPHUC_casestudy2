@@ -22,3 +22,7 @@ api/.env
 
 # Local files
 *.log
+
+# Local backups
+*.backup.txt
+*.backup.js
