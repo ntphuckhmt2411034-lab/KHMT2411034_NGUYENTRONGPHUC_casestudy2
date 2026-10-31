@@ -1,17 +1,75 @@
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
 const router = express.Router();
 
-// API đăng ký tài khoản
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Chi tra ve thong tin an toan cho frontend.
+function publicUser(user) {
+  return {
+    id: user._id,
+    fullName: user.fullName,
+    email: user.email,
+    avatarUrl: user.avatarUrl || ''
+  };
+}
+
+// Middleware xac thuc JWT cho API can dang nhap.
+function requireAuth(req, res, next) {
+  const authorization = req.headers.authorization || '';
+  const match = /^Bearer\s+(\S+)$/i.exec(authorization);
+
+  if (!match) {
+    return res.status(401).json({
+      message: 'Vui lòng đăng nhập để tiếp tục'
+    });
+  }
+
+  if (!process.env.JWT_SECRET) {
+    return res.status(500).json({
+      message: 'Máy chủ chưa được cấu hình đầy đủ'
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(
+      match[1],
+      process.env.JWT_SECRET,
+      { algorithms: ['HS256'] }
+    );
+
+    if (
+      !decoded ||
+      typeof decoded !== 'object' ||
+      typeof decoded.userId !== 'string'
+    ) {
+      return res.status(401).json({
+        message: 'Token không hợp lệ'
+      });
+    }
+
+    req.userId = decoded.userId;
+    next();
+  } catch (_) {
+    return res.status(401).json({
+      message: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn'
+    });
+  }
+}
+
+// ======================================================
+// A1 - DANG KY
+// POST /api/auth/register
+// ======================================================
+
 router.post('/register', async (req, res) => {
   try {
     const { fullName, email, password } = req.body || {};
 
-    // Kiểm tra dữ liệu đầu vào
     if (
       typeof fullName !== 'string' ||
       typeof email !== 'string' ||
@@ -28,21 +86,18 @@ router.post('/register', async (req, res) => {
     const name = fullName.trim();
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Kiểm tra định dạng email
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    if (!emailRegex.test(normalizedEmail)) {
       return res.status(400).json({
         message: 'Email không hợp lệ'
       });
     }
 
-    // Kiểm tra mật khẩu
     if (password.length < 8) {
       return res.status(400).json({
         message: 'Mật khẩu phải có ít nhất 8 ký tự'
       });
     }
 
-    // Kiểm tra email đã tồn tại
     const existingUser = await User.findOne({
       email: normalizedEmail
     });
@@ -53,10 +108,8 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Băm mật khẩu trước khi lưu
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Lưu tài khoản vào MongoDB
     const user = await User.create({
       fullName: name,
       email: normalizedEmail,
@@ -71,7 +124,6 @@ router.post('/register', async (req, res) => {
         email: user.email
       }
     });
-
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({
@@ -87,13 +139,15 @@ router.post('/register', async (req, res) => {
   }
 });
 
-module.exports = router;
-// A2 - Dang nhap bang email va mat khau
+// ======================================================
+// A2 - DANG NHAP
+// POST /api/auth/login
+// ======================================================
+
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
 
-    // Kiem tra du lieu dau vao
     if (
       typeof email !== 'string' ||
       typeof password !== 'string' ||
@@ -107,7 +161,6 @@ router.post('/login', async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Tim tai khoan trong MongoDB
     const user = await User.findOne({
       email: normalizedEmail
     });
@@ -118,7 +171,6 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // So sanh mat khau voi bcrypt
     const isPasswordValid = await bcrypt.compare(
       password,
       user.passwordHash
@@ -130,37 +182,165 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Kiem tra khoa JWT
     if (!process.env.JWT_SECRET) {
-      console.error('JWT_SECRET chua duoc cau hinh');
       return res.status(500).json({
         message: 'Máy chủ chưa được cấu hình đầy đủ'
       });
     }
 
-    // Tao JWT co thoi han 1 ngay
     const token = jwt.sign(
       { userId: user._id.toString() },
       process.env.JWT_SECRET,
       { expiresIn: '1d', algorithm: 'HS256' }
     );
 
-    // Tra ve ket qua dang nhap
     return res.status(200).json({
       message: 'Đăng nhập thành công',
       token,
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        avatarUrl: user.avatarUrl
-      }
+      user: publicUser(user)
     });
   } catch (error) {
-    console.error('Loi dang nhap:', error.message);
+    console.error('Lỗi đăng nhập:', error.message);
 
     return res.status(500).json({
       message: 'Lỗi máy chủ khi đăng nhập'
     });
   }
 });
+
+// ======================================================
+// A4 - XEM THONG TIN CA NHAN
+// GET /api/auth/me
+// ======================================================
+
+router.get('/me', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'Không tìm thấy tài khoản'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Lấy thông tin cá nhân thành công',
+      user: publicUser(user)
+    });
+  } catch (error) {
+    console.error('Lỗi lấy thông tin cá nhân:', error.message);
+
+    return res.status(500).json({
+      message: 'Không thể lấy thông tin cá nhân'
+    });
+  }
+});
+
+// ======================================================
+// A4 - CAP NHAT THONG TIN CA NHAN
+// PUT /api/auth/me
+// ======================================================
+
+router.put('/me', requireAuth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const { fullName, email } = body;
+
+    // Chi cho phep cap nhat ho ten va email.
+    // Khong chap nhan cac truong nhu passwordHash, _id.
+    const allowedFields = ['fullName', 'email'];
+    const receivedFields = Object.keys(body);
+
+    if (
+      receivedFields.length === 0 ||
+      receivedFields.some((field) => !allowedFields.includes(field))
+    ) {
+      return res.status(400).json({
+        message: 'Chỉ được cập nhật họ tên và email'
+      });
+    }
+
+    if (
+      (fullName !== undefined &&
+        (typeof fullName !== 'string' || !fullName.trim())) ||
+      (email !== undefined &&
+        (typeof email !== 'string' || !email.trim()))
+    ) {
+      return res.status(400).json({
+        message: 'Thông tin cập nhật không hợp lệ'
+      });
+    }
+
+    const updates = {};
+
+    if (fullName !== undefined) {
+      updates.fullName = fullName.trim();
+    }
+
+    if (email !== undefined) {
+      const normalizedEmail = email.trim().toLowerCase();
+
+      if (!emailRegex.test(normalizedEmail)) {
+        return res.status(400).json({
+          message: 'Email không hợp lệ'
+        });
+      }
+
+      const existingUser = await User.findOne({
+        email: normalizedEmail,
+        _id: { $ne: req.userId }
+      });
+
+      if (existingUser) {
+        return res.status(409).json({
+          message: 'Email đã được sử dụng'
+        });
+      }
+
+      updates.email = normalizedEmail;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.userId,
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'Không tìm thấy tài khoản'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Cập nhật thông tin cá nhân thành công',
+      user: publicUser(user)
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: 'Email đã được sử dụng'
+      });
+    }
+
+    if (error.name === 'CastError') {
+      return res.status(401).json({
+        message: 'Token không hợp lệ'
+      });
+    }
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        message: 'Thông tin cập nhật không hợp lệ'
+      });
+    }
+
+    console.error('Lỗi cập nhật thông tin cá nhân:', error.message);
+
+    return res.status(500).json({
+      message: 'Không thể cập nhật thông tin cá nhân'
+    });
+  }
+});
+
+module.exports = router;

@@ -641,7 +641,7 @@ class _LoginScreenState extends State<LoginScreen> {
 // MAN HINH SAU KHI DANG NHAP THANH CONG
 // ======================================================
 
-class WelcomeScreen extends StatelessWidget {
+class WelcomeScreen extends StatefulWidget {
   final String fullName;
   final String email;
 
@@ -650,6 +650,22 @@ class WelcomeScreen extends StatelessWidget {
     required this.fullName,
     required this.email,
   });
+
+  @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  late String _fullName = widget.fullName;
+  late String _email = widget.email;
+
+  void _updateWelcome(String fullName, String email) {
+    if (!mounted) return;
+    setState(() {
+      _fullName = fullName;
+      _email = email;
+    });
+  }
 
   Future<void> _logout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
@@ -718,13 +734,13 @@ class WelcomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Xin chào, $fullName',
+                  'Xin chào, $_fullName',
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 19),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  email,
+                  _email,
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.black54),
                 ),
@@ -739,6 +755,20 @@ class WelcomeScreen extends StatelessWidget {
                 SizedBox(
                   width: 220,
                   height: 50,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ProfileScreen(onUpdated: _updateWelcome),
+                      ),
+                    ),
+                    icon: const Icon(Icons.person_outline),
+                    label: const Text('Thông tin cá nhân'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: 220,
+                  height: 50,
                   child: OutlinedButton.icon(
                     onPressed: () => _logout(context),
                     icon: const Icon(Icons.logout),
@@ -746,6 +776,284 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ======================================================
+// A4 - XEM VA CAP NHAT THONG TIN CA NHAN
+// ======================================================
+
+class ProfileScreen extends StatefulWidget {
+  final void Function(String fullName, String email)? onUpdated;
+
+  const ProfileScreen({super.key, this.onUpdated});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+
+  bool _isLoading = true;
+  bool _isSaving = false;
+  bool _isEditing = false;
+  String? _loadError;
+  String _originalName = '';
+  String _originalEmail = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadProfile() async {
+    final token = AuthSession.token;
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _loadError = 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse('$apiBaseUrl/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 20));
+
+      if (!mounted) return;
+      if (response.statusCode != 200) {
+        setState(() => _loadError = response.statusCode == 401
+            ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+            : responseMessage(response, 'Không thể tải thông tin cá nhân.'));
+        return;
+      }
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (data is! Map || data['user'] is! Map) {
+        setState(() => _loadError = 'Dữ liệu hồ sơ không hợp lệ.');
+        return;
+      }
+
+      final user = data['user'] as Map;
+      final name = user['fullName']?.toString() ?? '';
+      final email = user['email']?.toString() ?? '';
+      _originalName = name;
+      _originalEmail = email;
+      _nameController.text = name;
+      _emailController.text = email;
+      widget.onUpdated?.call(name, email);
+    } on TimeoutException {
+      if (mounted) setState(() => _loadError = 'Kết nối quá thời gian.');
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadError = 'Không thể kết nối backend hoặc đọc dữ liệu.');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _cancelEditing() {
+    _nameController.text = _originalName;
+    _emailController.text = _originalEmail;
+    setState(() => _isEditing = false);
+  }
+
+  Future<void> _saveProfile() async {
+    if (_isSaving || !_formKey.currentState!.validate()) return;
+    final token = AuthSession.token;
+    if (token == null || token.isEmpty) {
+      showAppMessage(context, 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isSaving = true);
+    try {
+      final response = await http.put(
+        Uri.parse('$apiBaseUrl/me'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode({
+          'fullName': _nameController.text.trim(),
+          'email': _emailController.text.trim().toLowerCase(),
+        }),
+      ).timeout(const Duration(seconds: 20));
+
+      if (!mounted) return;
+      if (response.statusCode != 200) {
+        showAppMessage(context, response.statusCode == 401
+            ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+            : responseMessage(response, 'Cập nhật thất bại.'));
+        return;
+      }
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (data is! Map || data['user'] is! Map) {
+        showAppMessage(context, 'Phản hồi cập nhật không hợp lệ.');
+        return;
+      }
+      final user = data['user'] as Map;
+      final name = user['fullName']?.toString() ?? '';
+      final email = user['email']?.toString() ?? '';
+      _originalName = name;
+      _originalEmail = email;
+      _nameController.text = name;
+      _emailController.text = email;
+      widget.onUpdated?.call(name, email);
+      setState(() => _isEditing = false);
+      showAppMessage(context, 'Cập nhật thông tin cá nhân thành công!', success: true);
+    } on TimeoutException {
+      if (mounted) showAppMessage(context, 'Kết nối quá thời gian.');
+    } catch (_) {
+      if (mounted) showAppMessage(context, 'Không thể kết nối backend hoặc đọc dữ liệu.');
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Thông tin cá nhân')),
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _loadError != null
+            ? Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_loadError!, textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _loadProfile,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Thử lại'),
+                ),
+              ],
+            ),
+          ),
+        )
+            : SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Card(
+                color: Colors.white,
+                elevation: 0,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const CircleAvatar(
+                          radius: 34,
+                          child: Icon(Icons.person, size: 34),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Hồ sơ của tôi',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        TextFormField(
+                          controller: _nameController,
+                          readOnly: !_isEditing,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Họ và tên',
+                            prefixIcon: Icon(Icons.person_outline),
+                          ),
+                          validator: (value) =>
+                          (value == null || value.trim().isEmpty)
+                              ? 'Vui lòng nhập họ tên'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _emailController,
+                          readOnly: !_isEditing,
+                          keyboardType: TextInputType.emailAddress,
+                          autocorrect: false,
+                          decoration: const InputDecoration(
+                            labelText: 'Email',
+                            prefixIcon: Icon(Icons.email_outlined),
+                          ),
+                          validator: (value) {
+                            final email = value?.trim() ?? '';
+                            if (email.isEmpty) return 'Vui lòng nhập email';
+                            if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+                                .hasMatch(email)) {
+                              return 'Email không hợp lệ';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        if (!_isEditing)
+                          FilledButton.icon(
+                            onPressed: () => setState(() => _isEditing = true),
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Chỉnh sửa'),
+                          )
+                        else ...[
+                          FilledButton.icon(
+                            onPressed: _isSaving ? null : _saveProfile,
+                            icon: _isSaving
+                                ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                                : const Icon(Icons.save_outlined),
+                            label: Text(_isSaving ? 'Đang lưu...' : 'Lưu thay đổi'),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            onPressed: _isSaving ? null : _cancelEditing,
+                            child: const Text('Hủy chỉnh sửa'),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
