@@ -1,12 +1,14 @@
+
 import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'screens/profile/change_password_screen.dart';
+import 'screens/tasks/task_list_screen.dart';
 
 void main() {
-  runApp(const TaskManagerApp());
+runApp(const TaskManagerApp());
 }
 
 // Android Emulator ket noi backend tren may tinh.
@@ -15,63 +17,63 @@ const String apiBaseUrl = 'http://10.0.2.2:5000/api/auth';
 // Luu token tam trong bo nho ung dung.
 // Chua luu mat khau hoac token xuong file.
 class AuthSession {
-  static String? token;
+static String? token;
 }
 
 class TaskManagerApp extends StatelessWidget {
-  const TaskManagerApp({super.key});
+const TaskManagerApp({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'TaskManager',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2563EB),
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF5F7FB),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 16,
-          ),
-        ),
-      ),
-      home: const RegisterScreen(),
-    );
-  }
+@override
+Widget build(BuildContext context) {
+return MaterialApp(
+title: 'TaskManager',
+debugShowCheckedModeBanner: false,
+theme: ThemeData(
+useMaterial3: true,
+colorScheme: ColorScheme.fromSeed(
+seedColor: const Color(0xFF2563EB),
+),
+scaffoldBackgroundColor: const Color(0xFFF5F7FB),
+inputDecorationTheme: InputDecorationTheme(
+border: OutlineInputBorder(
+borderRadius: BorderRadius.circular(12),
+),
+contentPadding: const EdgeInsets.symmetric(
+horizontal: 14,
+vertical: 16,
+),
+),
+),
+home: const RegisterScreen(),
+);
+}
 }
 
 String responseMessage(http.Response response, String fallback) {
-  try {
-    final data = jsonDecode(utf8.decode(response.bodyBytes));
-    if (data is Map && data['message'] is String) {
-      return data['message'] as String;
-    }
-  } catch (_) {
-    // Su dung thong bao mac dinh neu response khong phai JSON.
-  }
-  return fallback;
+try {
+final data = jsonDecode(utf8.decode(response.bodyBytes));
+if (data is Map && data['message'] is String) {
+return data['message'] as String;
+}
+} catch (_) {
+// Su dung thong bao mac dinh neu response khong phai JSON.
+}
+return fallback;
 }
 
 void showAppMessage(
-    BuildContext context,
-    String message, {
-      bool success = false,
-    }) {
-  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      backgroundColor: success ? Colors.green : Colors.red,
-      behavior: SnackBarBehavior.floating,
-    ),
-  );
+BuildContext context,
+String message, {
+bool success = false,
+}) {
+ScaffoldMessenger.of(context).hideCurrentSnackBar();
+ScaffoldMessenger.of(context).showSnackBar(
+SnackBar(
+content: Text(message),
+backgroundColor: success ? Colors.green : Colors.red,
+behavior: SnackBarBehavior.floating,
+),
+);
 }
 
 // ======================================================
@@ -79,300 +81,300 @@ void showAppMessage(
 // ======================================================
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+const RegisterScreen({super.key});
 
-  @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+@override
+State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _formKey = GlobalKey<FormState>();
+final _formKey = GlobalKey<FormState>();
 
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmController = TextEditingController();
+final _nameController = TextEditingController();
+final _emailController = TextEditingController();
+final _passwordController = TextEditingController();
+final _confirmController = TextEditingController();
 
-  bool _hidePassword = true;
-  bool _hideConfirmPassword = true;
-  bool _isRegistering = false;
+bool _hidePassword = true;
+bool _hideConfirmPassword = true;
+bool _isRegistering = false;
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmController.dispose();
-    super.dispose();
-  }
+@override
+void dispose() {
+_nameController.dispose();
+_emailController.dispose();
+_passwordController.dispose();
+_confirmController.dispose();
+super.dispose();
+}
 
-  Future<void> _register() async {
-    if (_isRegistering) return;
-    if (!_formKey.currentState!.validate()) return;
+Future<void> _register() async {
+if (_isRegistering) return;
+if (!_formKey.currentState!.validate()) return;
 
-    FocusScope.of(context).unfocus();
-    setState(() => _isRegistering = true);
+FocusScope.of(context).unfocus();
+setState(() => _isRegistering = true);
 
-    try {
-      final response = await http
-          .post(
-        Uri.parse('$apiBaseUrl/register'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode({
-          'fullName': _nameController.text.trim(),
-          'email': _emailController.text.trim().toLowerCase(),
-          'password': _passwordController.text,
-        }),
-      )
-          .timeout(const Duration(seconds: 20));
+try {
+final response = await http
+    .post(
+Uri.parse('$apiBaseUrl/register'),
+headers: {
+'Content-Type': 'application/json; charset=UTF-8',
+},
+body: jsonEncode({
+'fullName': _nameController.text.trim(),
+'email': _emailController.text.trim().toLowerCase(),
+'password': _passwordController.text,
+}),
+)
+    .timeout(const Duration(seconds: 20));
 
-      if (!mounted) return;
+if (!mounted) return;
 
-      if (response.statusCode == 201) {
-        showAppMessage(
-          context,
-          'Đăng ký tài khoản thành công!',
-          success: true,
-        );
+if (response.statusCode == 201) {
+showAppMessage(
+context,
+'Đăng ký tài khoản thành công!',
+success: true,
+);
 
-        _nameController.clear();
-        _emailController.clear();
-        _passwordController.clear();
-        _confirmController.clear();
-      } else if (response.statusCode == 409) {
-        showAppMessage(context, 'Email này đã được đăng ký.');
-      } else {
-        showAppMessage(
-          context,
-          responseMessage(response, 'Đăng ký thất bại.'),
-        );
-      }
-    } on TimeoutException {
-      if (mounted) {
-        showAppMessage(context, 'Kết nối quá thời gian.');
-      }
-    } catch (_) {
-      if (mounted) {
-        showAppMessage(
-          context,
-          'Không thể kết nối backend. Kiểm tra Node.js và mạng.',
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isRegistering = false);
-      }
-    }
-  }
+_nameController.clear();
+_emailController.clear();
+_passwordController.clear();
+_confirmController.clear();
+} else if (response.statusCode == 409) {
+showAppMessage(context, 'Email này đã được đăng ký.');
+} else {
+showAppMessage(
+context,
+responseMessage(response, 'Đăng ký thất bại.'),
+);
+}
+} on TimeoutException {
+if (mounted) {
+showAppMessage(context, 'Kết nối quá thời gian.');
+}
+} catch (_) {
+if (mounted) {
+showAppMessage(
+context,
+'Không thể kết nối backend. Kiểm tra Node.js và mạng.',
+);
+}
+} finally {
+if (mounted) {
+setState(() => _isRegistering = false);
+}
+}
+}
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Card(
-                elevation: 0,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const CircleAvatar(
-                          radius: 32,
-                          backgroundColor: Color(0xFFE8F0FF),
-                          child: Icon(
-                            Icons.task_alt,
-                            size: 34,
-                            color: Color(0xFF2563EB),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Tạo tài khoản',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 27,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Bắt đầu quản lý và giao công việc cùng TaskManager',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.black54),
-                        ),
-                        const SizedBox(height: 30),
+@override
+Widget build(BuildContext context) {
+return Scaffold(
+body: SafeArea(
+child: Center(
+child: SingleChildScrollView(
+padding: const EdgeInsets.all(20),
+child: ConstrainedBox(
+constraints: const BoxConstraints(maxWidth: 440),
+child: Card(
+elevation: 0,
+color: Colors.white,
+shape: RoundedRectangleBorder(
+borderRadius: BorderRadius.circular(24),
+),
+child: Padding(
+padding: const EdgeInsets.all(24),
+child: Form(
+key: _formKey,
+child: Column(
+crossAxisAlignment: CrossAxisAlignment.stretch,
+children: [
+const CircleAvatar(
+radius: 32,
+backgroundColor: Color(0xFFE8F0FF),
+child: Icon(
+Icons.task_alt,
+size: 34,
+color: Color(0xFF2563EB),
+),
+),
+const SizedBox(height: 20),
+const Text(
+'Tạo tài khoản',
+textAlign: TextAlign.center,
+style: TextStyle(
+fontSize: 27,
+fontWeight: FontWeight.bold,
+),
+),
+const SizedBox(height: 8),
+const Text(
+'Bắt đầu quản lý và giao công việc cùng TaskManager',
+textAlign: TextAlign.center,
+style: TextStyle(color: Colors.black54),
+),
+const SizedBox(height: 30),
 
-                        TextFormField(
-                          controller: _nameController,
-                          textCapitalization: TextCapitalization.words,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Họ và tên',
-                            prefixIcon: Icon(Icons.person_outline),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Vui lòng nhập họ tên';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
+TextFormField(
+controller: _nameController,
+textCapitalization: TextCapitalization.words,
+textInputAction: TextInputAction.next,
+decoration: const InputDecoration(
+labelText: 'Họ và tên',
+prefixIcon: Icon(Icons.person_outline),
+),
+validator: (value) {
+if (value == null || value.trim().isEmpty) {
+return 'Vui lòng nhập họ tên';
+}
+return null;
+},
+),
+const SizedBox(height: 16),
 
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          autocorrect: false,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            prefixIcon: Icon(Icons.email_outlined),
-                          ),
-                          validator: (value) {
-                            final email = value?.trim() ?? '';
-                            if (email.isEmpty) {
-                              return 'Vui lòng nhập email';
-                            }
-                            if (!RegExp(
-                              r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
-                            ).hasMatch(email)) {
-                              return 'Email không hợp lệ';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
+TextFormField(
+controller: _emailController,
+keyboardType: TextInputType.emailAddress,
+textInputAction: TextInputAction.next,
+autocorrect: false,
+decoration: const InputDecoration(
+labelText: 'Email',
+prefixIcon: Icon(Icons.email_outlined),
+),
+validator: (value) {
+final email = value?.trim() ?? '';
+if (email.isEmpty) {
+return 'Vui lòng nhập email';
+}
+if (!RegExp(
+r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
+).hasMatch(email)) {
+return 'Email không hợp lệ';
+}
+return null;
+},
+),
+const SizedBox(height: 16),
 
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _hidePassword,
-                          textInputAction: TextInputAction.next,
-                          decoration: InputDecoration(
-                            labelText: 'Mật khẩu',
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  _hidePassword = !_hidePassword;
-                                });
-                              },
-                              icon: Icon(
-                                _hidePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                              ),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Vui lòng nhập mật khẩu';
-                            }
-                            if (value.length < 8) {
-                              return 'Mật khẩu phải có ít nhất 8 ký tự';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
+TextFormField(
+controller: _passwordController,
+obscureText: _hidePassword,
+textInputAction: TextInputAction.next,
+decoration: InputDecoration(
+labelText: 'Mật khẩu',
+prefixIcon: const Icon(Icons.lock_outline),
+suffixIcon: IconButton(
+onPressed: () {
+setState(() {
+_hidePassword = !_hidePassword;
+});
+},
+icon: Icon(
+_hidePassword
+? Icons.visibility_outlined
+    : Icons.visibility_off_outlined,
+),
+),
+),
+validator: (value) {
+if (value == null || value.isEmpty) {
+return 'Vui lòng nhập mật khẩu';
+}
+if (value.length < 8) {
+return 'Mật khẩu phải có ít nhất 8 ký tự';
+}
+return null;
+},
+),
+const SizedBox(height: 16),
 
-                        TextFormField(
-                          controller: _confirmController,
-                          obscureText: _hideConfirmPassword,
-                          textInputAction: TextInputAction.done,
-                          onFieldSubmitted: (_) => _register(),
-                          decoration: InputDecoration(
-                            labelText: 'Xác nhận mật khẩu',
-                            prefixIcon: const Icon(Icons.lock_reset),
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  _hideConfirmPassword =
-                                  !_hideConfirmPassword;
-                                });
-                              },
-                              icon: Icon(
-                                _hideConfirmPassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                              ),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Vui lòng xác nhận mật khẩu';
-                            }
-                            if (value != _passwordController.text) {
-                              return 'Mật khẩu xác nhận không khớp';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 24),
+TextFormField(
+controller: _confirmController,
+obscureText: _hideConfirmPassword,
+textInputAction: TextInputAction.done,
+onFieldSubmitted: (_) => _register(),
+decoration: InputDecoration(
+labelText: 'Xác nhận mật khẩu',
+prefixIcon: const Icon(Icons.lock_reset),
+suffixIcon: IconButton(
+onPressed: () {
+setState(() {
+_hideConfirmPassword =
+!_hideConfirmPassword;
+});
+},
+icon: Icon(
+_hideConfirmPassword
+? Icons.visibility_outlined
+    : Icons.visibility_off_outlined,
+),
+),
+),
+validator: (value) {
+if (value == null || value.isEmpty) {
+return 'Vui lòng xác nhận mật khẩu';
+}
+if (value != _passwordController.text) {
+return 'Mật khẩu xác nhận không khớp';
+}
+return null;
+},
+),
+const SizedBox(height: 24),
 
-                        SizedBox(
-                          height: 52,
-                          child: FilledButton(
-                            onPressed:
-                            _isRegistering ? null : _register,
-                            child: _isRegistering
-                                ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white,
-                              ),
-                            )
-                                : const Text(
-                              'Đăng ký tài khoản',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
+SizedBox(
+height: 52,
+child: FilledButton(
+onPressed:
+_isRegistering ? null : _register,
+child: _isRegistering
+? const SizedBox(
+height: 24,
+width: 24,
+child: CircularProgressIndicator(
+strokeWidth: 2.5,
+color: Colors.white,
+),
+)
+    : const Text(
+'Đăng ký tài khoản',
+style: TextStyle(
+fontSize: 16,
+fontWeight: FontWeight.w600,
+),
+),
+),
+),
+const SizedBox(height: 12),
 
-                        TextButton(
-                          onPressed: _isRegistering
-                              ? null
-                              : () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const LoginScreen(),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Đã có tài khoản? Đăng nhập',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+TextButton(
+onPressed: _isRegistering
+? null
+    : () {
+Navigator.push(
+context,
+MaterialPageRoute(
+builder: (_) => const LoginScreen(),
+),
+);
+},
+child: const Text(
+'Đã có tài khoản? Đăng nhập',
+),
+),
+],
+),
+),
+),
+),
+),
+),
+),
+),
+);
+}
 }
 
 // ======================================================
@@ -380,262 +382,262 @@ class _RegisterScreenState extends State<RegisterScreen> {
 // ======================================================
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+const LoginScreen({super.key});
 
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
+@override
+State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+final _formKey = GlobalKey<FormState>();
+final _emailController = TextEditingController();
+final _passwordController = TextEditingController();
 
-  bool _hidePassword = true;
-  bool _isLoggingIn = false;
+bool _hidePassword = true;
+bool _isLoggingIn = false;
 
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
+@override
+void dispose() {
+_emailController.dispose();
+_passwordController.dispose();
+super.dispose();
+}
 
-  Future<void> _login() async {
-    if (_isLoggingIn) return;
-    if (!_formKey.currentState!.validate()) return;
+Future<void> _login() async {
+if (_isLoggingIn) return;
+if (!_formKey.currentState!.validate()) return;
 
-    FocusScope.of(context).unfocus();
-    setState(() => _isLoggingIn = true);
+FocusScope.of(context).unfocus();
+setState(() => _isLoggingIn = true);
 
-    try {
-      final response = await http
-          .post(
-        Uri.parse('$apiBaseUrl/login'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode({
-          'email': _emailController.text.trim().toLowerCase(),
-          'password': _passwordController.text,
-        }),
-      )
-          .timeout(const Duration(seconds: 20));
+try {
+final response = await http
+    .post(
+Uri.parse('$apiBaseUrl/login'),
+headers: {
+'Content-Type': 'application/json; charset=UTF-8',
+},
+body: jsonEncode({
+'email': _emailController.text.trim().toLowerCase(),
+'password': _passwordController.text,
+}),
+)
+    .timeout(const Duration(seconds: 20));
 
-      if (!mounted) return;
+if (!mounted) return;
 
-      Map<String, dynamic>? data;
+Map<String, dynamic>? data;
 
-      try {
-        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        if (decoded is Map<String, dynamic>) {
-          data = decoded;
-        }
-      } catch (_) {
-        data = null;
-      }
+try {
+final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+if (decoded is Map<String, dynamic>) {
+data = decoded;
+}
+} catch (_) {
+data = null;
+}
 
-      if (response.statusCode == 200 &&
-          data?['token'] is String &&
-          (data!['token'] as String).isNotEmpty &&
-          data['user'] is Map) {
-        AuthSession.token = data['token'] as String;
+if (response.statusCode == 200 &&
+data?['token'] is String &&
+(data!['token'] as String).isNotEmpty &&
+data['user'] is Map) {
+AuthSession.token = data['token'] as String;
 
-        final user = data['user'] as Map;
+final user = data['user'] as Map;
 
-        final fullName = user['fullName']?.toString() ?? 'Người dùng';
-        final email = user['email']?.toString() ?? '';
+final fullName = user['fullName']?.toString() ?? 'Người dùng';
+final email = user['email']?.toString() ?? '';
 
-        if (!mounted) return;
+if (!mounted) return;
 
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (_) => WelcomeScreen(
-              fullName: fullName,
-              email: email,
-            ),
-          ),
-              (route) => false,
-        );
-      } else if (response.statusCode == 401) {
-        showAppMessage(
-          context,
-          'Email hoặc mật khẩu không chính xác.',
-        );
-      } else {
-        showAppMessage(
-          context,
-          responseMessage(response, 'Đăng nhập thất bại.'),
-        );
-      }
-    } on TimeoutException {
-      if (mounted) {
-        showAppMessage(context, 'Kết nối quá thời gian.');
-      }
-    } catch (_) {
-      if (mounted) {
-        showAppMessage(
-          context,
-          'Không thể kết nối backend. Kiểm tra Node.js và mạng.',
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoggingIn = false);
-      }
-    }
-  }
+Navigator.of(context).pushAndRemoveUntil(
+MaterialPageRoute(
+builder: (_) => WelcomeScreen(
+fullName: fullName,
+email: email,
+),
+),
+(route) => false,
+);
+} else if (response.statusCode == 401) {
+showAppMessage(
+context,
+'Email hoặc mật khẩu không chính xác.',
+);
+} else {
+showAppMessage(
+context,
+responseMessage(response, 'Đăng nhập thất bại.'),
+);
+}
+} on TimeoutException {
+if (mounted) {
+showAppMessage(context, 'Kết nối quá thời gian.');
+}
+} catch (_) {
+if (mounted) {
+showAppMessage(
+context,
+'Không thể kết nối backend. Kiểm tra Node.js và mạng.',
+);
+}
+} finally {
+if (mounted) {
+setState(() => _isLoggingIn = false);
+}
+}
+}
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Card(
-                elevation: 0,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const CircleAvatar(
-                          radius: 32,
-                          backgroundColor: Color(0xFFE8F0FF),
-                          child: Icon(
-                            Icons.lock_person_outlined,
-                            size: 34,
-                            color: Color(0xFF2563EB),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Đăng nhập',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 27,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Chào mừng bạn quay lại TaskManager',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.black54),
-                        ),
-                        const SizedBox(height: 30),
+@override
+Widget build(BuildContext context) {
+return Scaffold(
+body: SafeArea(
+child: Center(
+child: SingleChildScrollView(
+padding: const EdgeInsets.all(20),
+child: ConstrainedBox(
+constraints: const BoxConstraints(maxWidth: 440),
+child: Card(
+elevation: 0,
+color: Colors.white,
+shape: RoundedRectangleBorder(
+borderRadius: BorderRadius.circular(24),
+),
+child: Padding(
+padding: const EdgeInsets.all(24),
+child: Form(
+key: _formKey,
+child: Column(
+crossAxisAlignment: CrossAxisAlignment.stretch,
+children: [
+const CircleAvatar(
+radius: 32,
+backgroundColor: Color(0xFFE8F0FF),
+child: Icon(
+Icons.lock_person_outlined,
+size: 34,
+color: Color(0xFF2563EB),
+),
+),
+const SizedBox(height: 20),
+const Text(
+'Đăng nhập',
+textAlign: TextAlign.center,
+style: TextStyle(
+fontSize: 27,
+fontWeight: FontWeight.bold,
+),
+),
+const SizedBox(height: 8),
+const Text(
+'Chào mừng bạn quay lại TaskManager',
+textAlign: TextAlign.center,
+style: TextStyle(color: Colors.black54),
+),
+const SizedBox(height: 30),
 
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          autocorrect: false,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            prefixIcon: Icon(Icons.email_outlined),
-                          ),
-                          validator: (value) {
-                            final email = value?.trim() ?? '';
+TextFormField(
+controller: _emailController,
+keyboardType: TextInputType.emailAddress,
+textInputAction: TextInputAction.next,
+autocorrect: false,
+decoration: const InputDecoration(
+labelText: 'Email',
+prefixIcon: Icon(Icons.email_outlined),
+),
+validator: (value) {
+final email = value?.trim() ?? '';
 
-                            if (email.isEmpty) {
-                              return 'Vui lòng nhập email';
-                            }
+if (email.isEmpty) {
+return 'Vui lòng nhập email';
+}
 
-                            if (!RegExp(
-                              r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
-                            ).hasMatch(email)) {
-                              return 'Email không hợp lệ';
-                            }
+if (!RegExp(
+r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
+).hasMatch(email)) {
+return 'Email không hợp lệ';
+}
 
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
+return null;
+},
+),
+const SizedBox(height: 16),
 
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _hidePassword,
-                          textInputAction: TextInputAction.done,
-                          onFieldSubmitted: (_) => _login(),
-                          decoration: InputDecoration(
-                            labelText: 'Mật khẩu',
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  _hidePassword = !_hidePassword;
-                                });
-                              },
-                              icon: Icon(
-                                _hidePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                              ),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Vui lòng nhập mật khẩu';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 24),
+TextFormField(
+controller: _passwordController,
+obscureText: _hidePassword,
+textInputAction: TextInputAction.done,
+onFieldSubmitted: (_) => _login(),
+decoration: InputDecoration(
+labelText: 'Mật khẩu',
+prefixIcon: const Icon(Icons.lock_outline),
+suffixIcon: IconButton(
+onPressed: () {
+setState(() {
+_hidePassword = !_hidePassword;
+});
+},
+icon: Icon(
+_hidePassword
+? Icons.visibility_outlined
+    : Icons.visibility_off_outlined,
+),
+),
+),
+validator: (value) {
+if (value == null || value.isEmpty) {
+return 'Vui lòng nhập mật khẩu';
+}
+return null;
+},
+),
+const SizedBox(height: 24),
 
-                        SizedBox(
-                          height: 52,
-                          child: FilledButton(
-                            onPressed: _isLoggingIn ? null : _login,
-                            child: _isLoggingIn
-                                ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white,
-                              ),
-                            )
-                                : const Text(
-                              'Đăng nhập',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
+SizedBox(
+height: 52,
+child: FilledButton(
+onPressed: _isLoggingIn ? null : _login,
+child: _isLoggingIn
+? const SizedBox(
+height: 24,
+width: 24,
+child: CircularProgressIndicator(
+strokeWidth: 2.5,
+color: Colors.white,
+),
+)
+    : const Text(
+'Đăng nhập',
+style: TextStyle(
+fontSize: 16,
+fontWeight: FontWeight.w600,
+),
+),
+),
+),
+const SizedBox(height: 12),
 
-                        TextButton(
-                          onPressed: _isLoggingIn
-                              ? null
-                              : () {
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text(
-                            'Chưa có tài khoản? Đăng ký',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+TextButton(
+onPressed: _isLoggingIn
+? null
+    : () {
+Navigator.of(context).pop();
+},
+child: const Text(
+'Chưa có tài khoản? Đăng ký',
+),
+),
+],
+),
+),
+),
+),
+),
+),
+),
+),
+);
+}
 }
 
 // ======================================================
@@ -643,146 +645,170 @@ class _LoginScreenState extends State<LoginScreen> {
 // ======================================================
 
 class WelcomeScreen extends StatefulWidget {
-  final String fullName;
-  final String email;
+final String fullName;
+final String email;
 
-  const WelcomeScreen({
-    super.key,
-    required this.fullName,
-    required this.email,
-  });
+const WelcomeScreen({
+super.key,
+required this.fullName,
+required this.email,
+});
 
-  @override
-  State<WelcomeScreen> createState() => _WelcomeScreenState();
+@override
+State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
-  late String _fullName = widget.fullName;
-  late String _email = widget.email;
+late String _fullName = widget.fullName;
+late String _email = widget.email;
 
-  void _updateWelcome(String fullName, String email) {
-    if (!mounted) return;
-    setState(() {
-      _fullName = fullName;
-      _email = email;
-    });
-  }
+void _updateWelcome(String fullName, String email) {
+if (!mounted) return;
+setState(() {
+_fullName = fullName;
+_email = email;
+});
+}
 
-  Future<void> _logout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Xác nhận đăng xuất'),
-        content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi TaskManager không?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Đăng xuất'),
-          ),
-        ],
-      ),
-    );
+Future<void> _logout(BuildContext context) async {
+final confirmed = await showDialog<bool>(
+context: context,
+builder: (dialogContext) => AlertDialog(
+title: const Text('Xác nhận đăng xuất'),
+content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi TaskManager không?'),
+actions: [
+TextButton(
+onPressed: () => Navigator.of(dialogContext).pop(false),
+child: const Text('Hủy'),
+),
+FilledButton(
+onPressed: () => Navigator.of(dialogContext).pop(true),
+child: const Text('Đăng xuất'),
+),
+],
+),
+);
 
-    if (confirmed != true || !context.mounted) return;
+if (confirmed != true || !context.mounted) return;
 
-    // A3: xoa JWT dang giu trong bo nho Flutter.
-    AuthSession.token = null;
+// A3: xoa JWT dang giu trong bo nho Flutter.
+AuthSession.token = null;
 
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-    );
-  }
+Navigator.of(context).pushAndRemoveUntil(
+MaterialPageRoute(builder: (_) => const LoginScreen()),
+(route) => false,
+);
+}
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('TaskManager'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            tooltip: 'Đăng xuất',
-            icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.verified_user_outlined,
-                  color: Colors.green,
-                  size: 76,
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Đăng nhập thành công!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 25,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Xin chào, $_fullName',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 19),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _email,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.black54),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Bạn đã đăng nhập vào TaskManager.\n'
-                      'Các chức năng quản lý công việc sẽ được '
-                      'phát triển trong những phần tiếp theo.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 30),
-                SizedBox(
-                  width: 220,
-                  height: 50,
-                  child: FilledButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ProfileScreen(onUpdated: _updateWelcome),
-                      ),
-                    ),
-                    icon: const Icon(Icons.person_outline),
-                    label: const Text('Thông tin cá nhân'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: 220,
-                  height: 50,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _logout(context),
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Đăng xuất'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+@override
+Widget build(BuildContext context) {
+return Scaffold(
+appBar: AppBar(
+title: const Text('TaskManager'),
+centerTitle: true,
+actions: [
+IconButton(
+tooltip: 'Đăng xuất',
+icon: const Icon(Icons.logout),
+onPressed: () => _logout(context),
+),
+],
+),
+body: SafeArea(
+child: Center(
+child: Padding(
+padding: const EdgeInsets.all(24),
+child: Column(
+mainAxisAlignment: MainAxisAlignment.center,
+children: [
+const Icon(
+Icons.verified_user_outlined,
+color: Colors.green,
+size: 76,
+),
+const SizedBox(height: 20),
+const Text(
+'Đăng nhập thành công!',
+textAlign: TextAlign.center,
+style: TextStyle(
+fontSize: 25,
+fontWeight: FontWeight.bold,
+),
+),
+const SizedBox(height: 16),
+Text(
+'Xin chào, $_fullName',
+textAlign: TextAlign.center,
+style: const TextStyle(fontSize: 19),
+),
+const SizedBox(height: 8),
+Text(
+_email,
+textAlign: TextAlign.center,
+style: const TextStyle(color: Colors.black54),
+),
+const SizedBox(height: 24),
+const Text(
+'Bạn đã đăng nhập vào TaskManager.\n'
+'Các chức năng quản lý công việc sẽ được '
+'phát triển trong những phần tiếp theo.',
+textAlign: TextAlign.center,
+),
+const SizedBox(height: 30),
+SizedBox(
+width: 220,
+height: 50,
+child: FilledButton.icon(
+onPressed: () => Navigator.of(context).push(
+MaterialPageRoute(
+builder: (_) => ProfileScreen(onUpdated: _updateWelcome),
+),
+),
+icon: const Icon(Icons.person_outline),
+label: const Text('Thông tin cá nhân'),
+),
+),
+const SizedBox(height: 12),
+SizedBox(
+width: 220,
+height: 50,
+child: FilledButton.icon(
+onPressed: () {
+final token = AuthSession.token;
+if (token == null || token.isEmpty) {
+showAppMessage(
+context,
+'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+);
+return;
+}
+Navigator.of(context).push(
+MaterialPageRoute(
+builder: (_) => TaskListScreen(token: token),
+),
+);
+},
+icon: const Icon(Icons.list_alt_outlined),
+label: const Text('Danh sách công việc'),
+),
+),
+const SizedBox(height: 12),
+SizedBox(
+width: 220,
+height: 50,
+child: OutlinedButton.icon(
+onPressed: () => _logout(context),
+icon: const Icon(Icons.logout),
+label: const Text('Đăng xuất'),
+),
+),
+],
+),
+),
+),
+),
+);
+}
 }
 
 // ======================================================
@@ -790,300 +816,301 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 // ======================================================
 
 class ProfileScreen extends StatefulWidget {
-  final void Function(String fullName, String email)? onUpdated;
+final void Function(String fullName, String email)? onUpdated;
 
-  const ProfileScreen({super.key, this.onUpdated});
+const ProfileScreen({super.key, this.onUpdated});
 
-  @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+@override
+State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+final _formKey = GlobalKey<FormState>();
+final _nameController = TextEditingController();
+final _emailController = TextEditingController();
 
-  bool _isLoading = true;
-  bool _isSaving = false;
-  bool _isEditing = false;
-  String? _loadError;
-  String _originalName = '';
-  String _originalEmail = '';
+bool _isLoading = true;
+bool _isSaving = false;
+bool _isEditing = false;
+String? _loadError;
+String _originalName = '';
+String _originalEmail = '';
 
-  @override
-  void initState() {
-    super.initState();
-    _loadProfile();
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadProfile() async {
-    final token = AuthSession.token;
-    if (token == null || token.isEmpty) {
-      setState(() {
-        _loadError = 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.';
-        _isLoading = false;
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _loadError = null;
-    });
-
-    try {
-      final response = await http.get(
-        Uri.parse('$apiBaseUrl/me'),
-        headers: {'Authorization': 'Bearer $token'},
-      ).timeout(const Duration(seconds: 20));
-
-      if (!mounted) return;
-      if (response.statusCode != 200) {
-        setState(() => _loadError = response.statusCode == 401
-            ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
-            : responseMessage(response, 'Không thể tải thông tin cá nhân.'));
-        return;
-      }
-
-      final data = jsonDecode(utf8.decode(response.bodyBytes));
-      if (data is! Map || data['user'] is! Map) {
-        setState(() => _loadError = 'Dữ liệu hồ sơ không hợp lệ.');
-        return;
-      }
-
-      final user = data['user'] as Map;
-      final name = user['fullName']?.toString() ?? '';
-      final email = user['email']?.toString() ?? '';
-      _originalName = name;
-      _originalEmail = email;
-      _nameController.text = name;
-      _emailController.text = email;
-      widget.onUpdated?.call(name, email);
-    } on TimeoutException {
-      if (mounted) setState(() => _loadError = 'Kết nối quá thời gian.');
-    } catch (_) {
-      if (mounted) {
-        setState(() => _loadError = 'Không thể kết nối backend hoặc đọc dữ liệu.');
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _cancelEditing() {
-    _nameController.text = _originalName;
-    _emailController.text = _originalEmail;
-    setState(() => _isEditing = false);
-  }
-
-  Future<void> _saveProfile() async {
-    if (_isSaving || !_formKey.currentState!.validate()) return;
-    final token = AuthSession.token;
-    if (token == null || token.isEmpty) {
-      showAppMessage(context, 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
-      return;
-    }
-
-    FocusScope.of(context).unfocus();
-    setState(() => _isSaving = true);
-    try {
-      final response = await http.put(
-        Uri.parse('$apiBaseUrl/me'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode({
-          'fullName': _nameController.text.trim(),
-          'email': _emailController.text.trim().toLowerCase(),
-        }),
-      ).timeout(const Duration(seconds: 20));
-
-      if (!mounted) return;
-      if (response.statusCode != 200) {
-        showAppMessage(context, response.statusCode == 401
-            ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
-            : responseMessage(response, 'Cập nhật thất bại.'));
-        return;
-      }
-
-      final data = jsonDecode(utf8.decode(response.bodyBytes));
-      if (data is! Map || data['user'] is! Map) {
-        showAppMessage(context, 'Phản hồi cập nhật không hợp lệ.');
-        return;
-      }
-      final user = data['user'] as Map;
-      final name = user['fullName']?.toString() ?? '';
-      final email = user['email']?.toString() ?? '';
-      _originalName = name;
-      _originalEmail = email;
-      _nameController.text = name;
-      _emailController.text = email;
-      widget.onUpdated?.call(name, email);
-      setState(() => _isEditing = false);
-      showAppMessage(context, 'Cập nhật thông tin cá nhân thành công!', success: true);
-    } on TimeoutException {
-      if (mounted) showAppMessage(context, 'Kết nối quá thời gian.');
-    } catch (_) {
-      if (mounted) showAppMessage(context, 'Không thể kết nối backend hoặc đọc dữ liệu.');
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Thông tin cá nhân')),
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _loadError != null
-            ? Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(_loadError!, textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: _loadProfile,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Thử lại'),
-                ),
-              ],
-            ),
-          ),
-        )
-            : SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Card(
-                color: Colors.white,
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const CircleAvatar(
-                          radius: 34,
-                          child: Icon(Icons.person, size: 34),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Hồ sơ của tôi',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        TextFormField(
-                          controller: _nameController,
-                          readOnly: !_isEditing,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'Họ và tên',
-                            prefixIcon: Icon(Icons.person_outline),
-                          ),
-                          validator: (value) =>
-                          (value == null || value.trim().isEmpty)
-                              ? 'Vui lòng nhập họ tên'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _emailController,
-                          readOnly: !_isEditing,
-                          keyboardType: TextInputType.emailAddress,
-                          autocorrect: false,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            prefixIcon: Icon(Icons.email_outlined),
-                          ),
-                          validator: (value) {
-                            final email = value?.trim() ?? '';
-                            if (email.isEmpty) return 'Vui lòng nhập email';
-                            if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                                .hasMatch(email)) {
-                              return 'Email không hợp lệ';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        if (!_isEditing)
-                          FilledButton.icon(
-                            onPressed: () => setState(() => _isEditing = true),
-                            icon: const Icon(Icons.edit_outlined),
-                            label: const Text('Chỉnh sửa'),
-                          )
-                        else ...[
-                          FilledButton.icon(
-                            onPressed: _isSaving ? null : _saveProfile,
-                            icon: _isSaving
-                                ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                                : const Icon(Icons.save_outlined),
-                            label: Text(_isSaving ? 'Đang lưu...' : 'Lưu thay đổi'),
-                          ),
-                          const SizedBox(height: 12),
-                          OutlinedButton(
-                            onPressed: _isSaving ? null : _cancelEditing,
-                            child: const Text('Hủy chỉnh sửa'),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        // A5 - Doi mat khau
-                        OutlinedButton.icon(
-                          onPressed: (_isEditing || _isSaving)
-                              ? null
-                              : () {
-                            final token = AuthSession.token;
-                            if (token == null || token.isEmpty) {
-                              showAppMessage(
-                                context,
-                                'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
-                              );
-                              return;
-                            }
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ChangePasswordScreen(
-                                  token: token,
-                                ),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.lock_reset),
-                          label: const Text('Đổi mật khẩu'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+@override
+void initState() {
+super.initState();
+_loadProfile();
 }
+
+@override
+void dispose() {
+_nameController.dispose();
+_emailController.dispose();
+super.dispose();
+}
+
+Future<void> _loadProfile() async {
+final token = AuthSession.token;
+if (token == null || token.isEmpty) {
+setState(() {
+_loadError = 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.';
+_isLoading = false;
+});
+return;
+}
+
+setState(() {
+_isLoading = true;
+_loadError = null;
+});
+
+try {
+final response = await http.get(
+Uri.parse('$apiBaseUrl/me'),
+headers: {'Authorization': 'Bearer $token'},
+).timeout(const Duration(seconds: 20));
+
+if (!mounted) return;
+if (response.statusCode != 200) {
+setState(() => _loadError = response.statusCode == 401
+? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+    : responseMessage(response, 'Không thể tải thông tin cá nhân.'));
+return;
+}
+
+final data = jsonDecode(utf8.decode(response.bodyBytes));
+if (data is! Map || data['user'] is! Map) {
+setState(() => _loadError = 'Dữ liệu hồ sơ không hợp lệ.');
+return;
+}
+
+final user = data['user'] as Map;
+final name = user['fullName']?.toString() ?? '';
+final email = user['email']?.toString() ?? '';
+_originalName = name;
+_originalEmail = email;
+_nameController.text = name;
+_emailController.text = email;
+widget.onUpdated?.call(name, email);
+} on TimeoutException {
+if (mounted) setState(() => _loadError = 'Kết nối quá thời gian.');
+} catch (_) {
+if (mounted) {
+setState(() => _loadError = 'Không thể kết nối backend hoặc đọc dữ liệu.');
+}
+} finally {
+if (mounted) setState(() => _isLoading = false);
+}
+}
+
+void _cancelEditing() {
+_nameController.text = _originalName;
+_emailController.text = _originalEmail;
+setState(() => _isEditing = false);
+}
+
+Future<void> _saveProfile() async {
+if (_isSaving || !_formKey.currentState!.validate()) return;
+final token = AuthSession.token;
+if (token == null || token.isEmpty) {
+showAppMessage(context, 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
+return;
+}
+
+FocusScope.of(context).unfocus();
+setState(() => _isSaving = true);
+try {
+final response = await http.put(
+Uri.parse('$apiBaseUrl/me'),
+headers: {
+'Authorization': 'Bearer $token',
+'Content-Type': 'application/json; charset=UTF-8',
+},
+body: jsonEncode({
+'fullName': _nameController.text.trim(),
+'email': _emailController.text.trim().toLowerCase(),
+}),
+).timeout(const Duration(seconds: 20));
+
+if (!mounted) return;
+if (response.statusCode != 200) {
+showAppMessage(context, response.statusCode == 401
+? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+    : responseMessage(response, 'Cập nhật thất bại.'));
+return;
+}
+
+final data = jsonDecode(utf8.decode(response.bodyBytes));
+if (data is! Map || data['user'] is! Map) {
+showAppMessage(context, 'Phản hồi cập nhật không hợp lệ.');
+return;
+}
+final user = data['user'] as Map;
+final name = user['fullName']?.toString() ?? '';
+final email = user['email']?.toString() ?? '';
+_originalName = name;
+_originalEmail = email;
+_nameController.text = name;
+_emailController.text = email;
+widget.onUpdated?.call(name, email);
+setState(() => _isEditing = false);
+showAppMessage(context, 'Cập nhật thông tin cá nhân thành công!', success: true);
+} on TimeoutException {
+if (mounted) showAppMessage(context, 'Kết nối quá thời gian.');
+} catch (_) {
+if (mounted) showAppMessage(context, 'Không thể kết nối backend hoặc đọc dữ liệu.');
+} finally {
+if (mounted) setState(() => _isSaving = false);
+}
+}
+
+@override
+Widget build(BuildContext context) {
+return Scaffold(
+appBar: AppBar(title: const Text('Thông tin cá nhân')),
+body: SafeArea(
+child: _isLoading
+? const Center(child: CircularProgressIndicator())
+    : _loadError != null
+? Center(
+child: Padding(
+padding: const EdgeInsets.all(24),
+child: Column(
+mainAxisSize: MainAxisSize.min,
+children: [
+Text(_loadError!, textAlign: TextAlign.center),
+const SizedBox(height: 16),
+OutlinedButton.icon(
+onPressed: _loadProfile,
+icon: const Icon(Icons.refresh),
+label: const Text('Thử lại'),
+),
+],
+),
+),
+)
+    : SingleChildScrollView(
+padding: const EdgeInsets.all(20),
+child: Center(
+child: ConstrainedBox(
+constraints: const BoxConstraints(maxWidth: 440),
+child: Card(
+color: Colors.white,
+elevation: 0,
+child: Padding(
+padding: const EdgeInsets.all(24),
+child: Form(
+key: _formKey,
+child: Column(
+crossAxisAlignment: CrossAxisAlignment.stretch,
+children: [
+const CircleAvatar(
+radius: 34,
+child: Icon(Icons.person, size: 34),
+),
+const SizedBox(height: 16),
+const Text(
+'Hồ sơ của tôi',
+textAlign: TextAlign.center,
+style: TextStyle(
+fontSize: 24,
+fontWeight: FontWeight.bold,
+),
+),
+const SizedBox(height: 28),
+TextFormField(
+controller: _nameController,
+readOnly: !_isEditing,
+textCapitalization: TextCapitalization.words,
+decoration: const InputDecoration(
+labelText: 'Họ và tên',
+prefixIcon: Icon(Icons.person_outline),
+),
+validator: (value) =>
+(value == null || value.trim().isEmpty)
+? 'Vui lòng nhập họ tên'
+    : null,
+),
+const SizedBox(height: 16),
+TextFormField(
+controller: _emailController,
+readOnly: !_isEditing,
+keyboardType: TextInputType.emailAddress,
+autocorrect: false,
+decoration: const InputDecoration(
+labelText: 'Email',
+prefixIcon: Icon(Icons.email_outlined),
+),
+validator: (value) {
+final email = value?.trim() ?? '';
+if (email.isEmpty) return 'Vui lòng nhập email';
+if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+    .hasMatch(email)) {
+return 'Email không hợp lệ';
+}
+return null;
+},
+),
+const SizedBox(height: 24),
+if (!_isEditing)
+FilledButton.icon(
+onPressed: () => setState(() => _isEditing = true),
+icon: const Icon(Icons.edit_outlined),
+label: const Text('Chỉnh sửa'),
+)
+else ...[
+FilledButton.icon(
+onPressed: _isSaving ? null : _saveProfile,
+icon: _isSaving
+? const SizedBox(
+width: 18,
+height: 18,
+child: CircularProgressIndicator(strokeWidth: 2),
+)
+    : const Icon(Icons.save_outlined),
+label: Text(_isSaving ? 'Đang lưu...' : 'Lưu thay đổi'),
+),
+const SizedBox(height: 12),
+OutlinedButton(
+onPressed: _isSaving ? null : _cancelEditing,
+child: const Text('Hủy chỉnh sửa'),
+),
+],
+const SizedBox(height: 16),
+// A5 - Doi mat khau
+OutlinedButton.icon(
+onPressed: (_isEditing || _isSaving)
+? null
+    : () {
+final token = AuthSession.token;
+if (token == null || token.isEmpty) {
+showAppMessage(
+context,
+'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+);
+return;
+}
+Navigator.of(context).push(
+MaterialPageRoute(
+builder: (_) => ChangePasswordScreen(
+token: token,
+),
+),
+);
+},
+icon: const Icon(Icons.lock_reset),
+label: const Text('Đổi mật khẩu'),
+),
+],
+),
+),
+),
+),
+),
+),
+),
+),
+);
+}
+}
+
