@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'screens/profile/change_password_screen.dart';
 
 void main() {
   runApp(const TaskManagerApp());
@@ -1049,6 +1050,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: const Text('Hủy chỉnh sửa'),
                           ),
                         ],
+                        const SizedBox(height: 16),
+                        // A5 - Doi mat khau
+                        OutlinedButton.icon(
+                          onPressed: (_isEditing || _isSaving)
+                              ? null
+                              : () {
+                            final token = AuthSession.token;
+                            if (token == null || token.isEmpty) {
+                              showAppMessage(
+                                context,
+                                'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+                              );
+                              return;
+                            }
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ChangePasswordScreen(
+                                  token: token,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.lock_reset),
+                          label: const Text('Đổi mật khẩu'),
+                        ),
                       ],
                     ),
                   ),

@@ -343,4 +343,38 @@ router.put('/me', requireAuth, async (req, res) => {
   }
 });
 
+// ======================================================
+// A5 - DOI MAT KHAU
+// PUT /api/auth/change-password
+// ======================================================
+router.put('/change-password', requireAuth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const { currentPassword, newPassword } = body;
+    if (Object.keys(body).some(key => !['currentPassword', 'newPassword'].includes(key))) {
+      return res.status(400).json({ message: 'Dá»¯ liá»‡u Ä‘á»•i máº­t kháº©u khÃ´ng há»£p lá»‡' });
+    }
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Vui lÃ²ng nháº­p máº­t kháº©u hiá»‡n táº¡i vÃ  máº­t kháº©u má»›i' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'Máº­t kháº©u má»›i pháº£i cÃ³ Ã­t nháº¥t 8 kÃ½ tá»±' });
+    }
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: 'KhÃ´ng tÃ¬m tháº¥y tÃ i khoáº£n' });
+    const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!matches) return res.status(400).json({ message: 'Máº­t kháº©u hiá»‡n táº¡i khÃ´ng chÃ­nh xÃ¡c' });
+    if (await bcrypt.compare(newPassword, user.passwordHash)) {
+      return res.status(400).json({ message: 'Máº­t kháº©u má»›i pháº£i khÃ¡c máº­t kháº©u hiá»‡n táº¡i' });
+    }
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
+    await user.save();
+    return res.status(200).json({ message: 'Äá»•i máº­t kháº©u thÃ nh cÃ´ng' });
+  } catch (error) {
+    if (error.name === 'CastError') return res.status(401).json({ message: 'Token khÃ´ng há»£p lá»‡' });
+    console.error('Lá»—i Ä‘á»•i máº­t kháº©u:', error.message);
+    return res.status(500).json({ message: 'KhÃ´ng thá»ƒ Ä‘á»•i máº­t kháº©u' });
+  }
+});
+
 module.exports = router;
