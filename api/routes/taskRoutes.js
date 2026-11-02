@@ -488,4 +488,84 @@ router.delete('/:id', requireAuth, async (req, res) => {
     });
   }
 });
+
+/**
+ * B3 - Cap nhat trang thai cong viec
+ * PATCH /api/tasks/:id/status
+ */
+router.patch('/:id/status', requireAuth, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+
+    // Kiem tra ID MongoDB
+    if (!mongoose.isValidObjectId(taskId)) {
+      return res.status(400).json({
+        message: 'ID cong viec khong hop le'
+      });
+    }
+
+    // Kiem tra du lieu gui len
+    const body = req.body;
+
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      Array.isArray(body) ||
+      Object.keys(body).length !== 1 ||
+      !Object.prototype.hasOwnProperty.call(body, 'status')
+    ) {
+      return res.status(400).json({
+        message: 'Chi duoc cap nhat truong status'
+      });
+    }
+
+    const validStatuses = [
+      'chua_thuc_hien',
+      'dang_thuc_hien',
+      'da_hoan_thanh'
+    ];
+
+    if (!validStatuses.includes(body.status)) {
+      return res.status(400).json({
+        message: 'Trang thai cong viec khong hop le'
+      });
+    }
+
+    // B3: Chi nguoi tao duoc cap nhat trang thai.
+    // Quyen editor se duoc mo rong o Module C.
+    const task = await Task.findOne({
+      _id: taskId,
+      createdBy: req.userId
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Khong tim thay cong viec hoac khong co quyen cap nhat'
+      });
+    }
+
+    task.status = body.status;
+
+    await task.save();
+
+    return res.status(200).json({
+      message: 'Cap nhat trang thai thanh cong',
+      task
+    });
+
+  } catch (error) {
+    console.error('Loi cap nhat trang thai:', error.message);
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        message: 'Du lieu cong viec khong hop le'
+      });
+    }
+
+    return res.status(500).json({
+      message: 'Khong the cap nhat trang thai'
+    });
+  }
+});
+
 module.exports = router;
