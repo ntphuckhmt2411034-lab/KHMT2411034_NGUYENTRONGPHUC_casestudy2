@@ -568,4 +568,75 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * B4 - Cap nhat do uu tien cong viec
+ * PATCH /api/tasks/:id/priority
+ */
+router.patch('/:id/priority', requireAuth, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+
+    if (!mongoose.isValidObjectId(taskId)) {
+      return res.status(400).json({
+        message: 'ID cong viec khong hop le'
+      });
+    }
+
+    const body = req.body;
+
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      Array.isArray(body) ||
+      Object.keys(body).length !== 1 ||
+      !Object.prototype.hasOwnProperty.call(body, 'priority')
+    ) {
+      return res.status(400).json({
+        message: 'Chi duoc cap nhat truong priority'
+      });
+    }
+
+    const validPriorities = ['thap', 'trung_binh', 'cao'];
+
+    if (!validPriorities.includes(body.priority)) {
+      return res.status(400).json({
+        message: 'Do uu tien khong hop le'
+      });
+    }
+
+    // B4: Chi nguoi tao duoc thay doi do uu tien.
+    // Quyen editor se duoc bo sung trong Module C.
+    const task = await Task.findOne({
+      _id: taskId,
+      createdBy: req.userId
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Khong tim thay cong viec hoac khong co quyen cap nhat'
+      });
+    }
+
+    task.priority = body.priority;
+    await task.save();
+
+    return res.status(200).json({
+      message: 'Cap nhat do uu tien thanh cong',
+      task
+    });
+  } catch (error) {
+    console.error('Loi cap nhat do uu tien:', error.message);
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        message: 'Du lieu cong viec khong hop le'
+      });
+    }
+
+    return res.status(500).json({
+      message: 'Khong the cap nhat do uu tien'
+    });
+  }
+});
+
 module.exports = router;
