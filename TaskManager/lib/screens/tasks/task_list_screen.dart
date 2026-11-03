@@ -34,6 +34,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
   String _priorityFilter = 'all';
   String _assigneeFilter = 'all';
 
+  // B7 - Sap xep cong viec.
+  String _sortBy = 'created_desc';
+
   static const Map<String, String> statusOptions = {
     'all': 'Tất cả trạng thái',
     'chua_thuc_hien': 'Chưa thực hiện',
@@ -46,6 +49,16 @@ class _TaskListScreenState extends State<TaskListScreen> {
     'thap': 'Thấp',
     'trung_binh': 'Trung bình',
     'cao': 'Cao',
+  };
+
+  // B7 - Sau lua chon sap xep.
+  static const Map<String, String> sortOptions = {
+    'created_desc': 'Ngày tạo: Mới nhất',
+    'created_asc': 'Ngày tạo: Cũ nhất',
+    'due_asc': 'Hạn hoàn thành: Gần nhất',
+    'due_desc': 'Hạn hoàn thành: Xa nhất',
+    'priority_desc': 'Độ ưu tiên: Cao đến thấp',
+    'priority_asc': 'Độ ưu tiên: Thấp đến cao',
   };
 
   bool get _hasActiveFilters =>
@@ -137,8 +150,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
             .map((item) => Map<String, dynamic>.from(item))
             .toList();
 
-        // Neu nguoi duoc giao khong con ton tai
-        // trong danh sach, dat lai bo loc.
+        // B6 - Dat lai bo loc neu nguoi duoc
+        // giao khong con trong danh sach.
         final selectedId = _assigneeFilter;
 
         if (selectedId != 'all' &&
@@ -213,11 +226,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     return values.any((value) => _idOf(value) == userId);
   }
 
-  // B6 - Tao danh sach nguoi duoc giao tu
-  // cac cong viec backend da cho phep xem.
-  //
-  // Khi C1/C2 duoc trien khai, bo loc nay
-  // co the mo rong sang danh sach tai khoan.
+  // B6 - Danh sach nguoi duoc giao.
   Map<String, String> get _assigneeOptions {
     final options = <String, String>{
       'all': 'Tất cả người được giao',
@@ -242,7 +251,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
       if (label.trim().isEmpty) {
         label = id == _currentUserId
             ? 'Tôi'
-            : 'Tài khoản ${id.length > 8 ? id.substring(0, 8) : id}...';
+            : 'Tài khoản '
+                  '${id.length > 8 ? id.substring(0, 8) : id}...';
       }
 
       options[id] = label;
@@ -251,13 +261,132 @@ class _TaskListScreenState extends State<TaskListScreen> {
     return options;
   }
 
-  // B1 + B6 - Ket hop phan loai va cac bo loc.
+  // =====================================================
+  // B7 - HAM HO TRO SAP XEP
+  // =====================================================
+
+  // Doc ngay tu MongoDB.
+  // Gia tri null hoac ngay sai duoc xem la chua co ngay.
+  DateTime? _parseTaskDate(dynamic value) {
+    if (value == null) return null;
+
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return null;
+
+    return DateTime.tryParse(raw);
+  }
+
+  // So sanh ngay.
+  // Ngay trong luon nam cuoi danh sach,
+  // bat ke dang sap xep tang hay giam.
+  int _compareDates(dynamic first, dynamic second, {required bool ascending}) {
+    final dateA = _parseTaskDate(first);
+    final dateB = _parseTaskDate(second);
+
+    if (dateA == null && dateB == null) return 0;
+    if (dateA == null) return 1;
+    if (dateB == null) return -1;
+
+    final comparison = dateA.compareTo(dateB);
+
+    return ascending ? comparison : -comparison;
+  }
+
+  // Chuyen do uu tien thanh so de sap xep.
+  int _priorityRank(dynamic priority) {
+    switch (priority?.toString()) {
+      case 'thap':
+        return 1;
+      case 'trung_binh':
+        return 2;
+      case 'cao':
+        return 3;
+      default:
+        return 0;
+    }
+  }
+
+  // B7 - So sanh hai cong viec.
+  int _compareTasks(Map<String, dynamic> first, Map<String, dynamic> second) {
+    int comparison;
+
+    switch (_sortBy) {
+      case 'created_asc':
+        comparison = _compareDates(
+          first['createdAt'],
+          second['createdAt'],
+          ascending: true,
+        );
+        break;
+
+      case 'due_asc':
+        comparison = _compareDates(
+          first['dueDate'],
+          second['dueDate'],
+          ascending: true,
+        );
+        break;
+
+      case 'due_desc':
+        comparison = _compareDates(
+          first['dueDate'],
+          second['dueDate'],
+          ascending: false,
+        );
+        break;
+
+      case 'priority_desc':
+        comparison = _priorityRank(second['priority'])
+            .compareTo(_priorityRank(first['priority']));
+        break;
+
+      case 'priority_asc':
+        comparison = _priorityRank(first['priority'])
+            .compareTo(_priorityRank(second['priority']));
+        break;
+
+      case 'created_desc':
+      default:
+        comparison = _compareDates(
+          first['createdAt'],
+          second['createdAt'],
+          ascending: false,
+        );
+        break;
+    }
+
+    if (comparison != 0) {
+      return comparison;
+    }
+
+    // Neu hai cong viec cung gia tri,
+    // uu tien cong viec tao moi hon.
+    final byCreatedDate = _compareDates(
+      first['createdAt'],
+      second['createdAt'],
+      ascending: false,
+    );
+
+    if (byCreatedDate != 0) {
+      return byCreatedDate;
+    }
+
+    // Tieu chi cuoi de ket qua on dinh.
+    return (first['_id']?.toString() ?? '').compareTo(
+      second['_id']?.toString() ?? '',
+    );
+  }
+
+  // =====================================================
+  // B1 + B6 + B7 - PHAN LOAI, LOC VA SAP XEP
+  // =====================================================
+
   List<Map<String, dynamic>> get _visibleTasks {
     final userId = _currentUserId;
     final query = _searchQuery.trim().toLowerCase();
 
-    return _tasks.where((task) {
-      // B1 - Nhom cong viec.
+    final filtered = _tasks.where((task) {
+      // B1 - Loc theo nhom cong viec.
       if (_scope != 'all' && userId != null) {
         bool matchesScope;
 
@@ -281,7 +410,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
         if (!matchesScope) return false;
       }
 
-      // B6.1 - Tim kiem theo ten cong viec.
+      // B6.1 - Tim theo ten cong viec.
       final title = task['title']?.toString().toLowerCase() ?? '';
 
       if (query.isNotEmpty && !title.contains(query)) {
@@ -315,9 +444,15 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
       return true;
     }).toList();
+
+    // B7 - Chi sap xep danh sach da loc.
+    // Khong thay doi du lieu goc trong _tasks.
+    filtered.sort(_compareTasks);
+
+    return filtered;
   }
 
-  // B6 - Xoa cac bo loc; giu nguyen nhom B1.
+  // B6 - Xoa bo loc, giu nhom va sap xep B7.
   void _clearFilters() {
     _searchController.clear();
 
@@ -381,7 +516,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
         '${local.year}';
   }
 
-  // B6 - Bo loc hien thi phia tren danh sach.
+  // B6 + B7 - Thanh tim kiem, loc va sap xep.
   Widget _buildSearchAndFilters() {
     final assignees = _assigneeOptions;
 
@@ -390,6 +525,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // B6 - Tim kiem theo ten.
           TextField(
             controller: _searchController,
             textInputAction: TextInputAction.search,
@@ -421,6 +557,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
           const SizedBox(height: 12),
 
+          // B6 - Loc trang thai va do uu tien.
           Row(
             children: [
               Expanded(
@@ -448,7 +585,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
                   },
                 ),
               ),
+
               const SizedBox(width: 10),
+
               Expanded(
                 child: DropdownButtonFormField<String>(
                   key: ValueKey('priority-$_priorityFilter'),
@@ -484,6 +623,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
           const SizedBox(height: 10),
 
+          // B6 - Loc nguoi duoc giao.
           DropdownButtonFormField<String>(
             key: ValueKey('assignee-$_assigneeFilter'),
             initialValue: assignees.containsKey(_assigneeFilter)
@@ -512,6 +652,34 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
           const SizedBox(height: 10),
 
+          // B7 - Chon tieu chi sap xep.
+          DropdownButtonFormField<String>(
+            key: ValueKey('sort-$_sortBy'),
+            initialValue: _sortBy,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Sắp xếp công việc',
+              prefixIcon: Icon(Icons.sort),
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            items: sortOptions.entries.map((entry) {
+              return DropdownMenuItem<String>(
+                value: entry.key,
+                child: Text(entry.value, overflow: TextOverflow.ellipsis),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value == null) return;
+
+              setState(() {
+                _sortBy = value;
+              });
+            },
+          ),
+
+          const SizedBox(height: 10),
+
           Row(
             children: [
               Expanded(
@@ -533,7 +701,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
-  // B1 + B2 + B3 + B4 - The cong viec.
+  // B1 + B2 + B3 + B4 + B5 - The cong viec.
   Widget _buildTaskCard(Map<String, dynamic> task) {
     final title = task['title']?.toString() ?? 'Không có tiêu đề';
 
@@ -569,7 +737,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
           if (!mounted) return;
 
-          // B2-B4 - Tai lai khi co thay doi.
+          // Tai lai danh sach sau khi co thay doi.
           if (updated == true) {
             await _loadTasks();
           }
@@ -732,7 +900,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                       ),
                     ),
 
-                  // B6 - Tim kiem va loc.
+                  // B6 + B7 - Bo loc va sap xep.
                   _buildSearchAndFilters(),
 
                   Expanded(
