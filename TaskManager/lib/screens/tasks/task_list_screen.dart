@@ -420,7 +420,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
             break;
 
           case 'shared':
-            matchesScope = _containsUser(task['sharedWith'], userId);
+            matchesScope = _containsUser(task['sharedWith'], userId) || (task['sharePermission'] != null && task['sharePermission'].toString().isNotEmpty);
             break;
 
           default:

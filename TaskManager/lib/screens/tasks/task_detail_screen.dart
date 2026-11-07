@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import 'task_edit_screen.dart';
 import '../assignment/assign_task_screen.dart';
+import '../sharing/share_task_screen.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final String token;
@@ -937,6 +938,28 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                                 label: const Text(
                                   'Giao việc cho thành viên',
                                 ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _isBusy
+                                    ? null
+                                    : () async {
+                                        await Navigator.push<bool>(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => ShareTaskScreen(
+                                              token: widget.token,
+                                              taskId: widget.taskId,
+                                              taskTitle: task['title']?.toString() ?? 'Công việc',
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                icon: const Icon(Icons.share_outlined),
+                                label: const Text('Chia sẻ công việc'),
                               ),
                             ),
                           ],

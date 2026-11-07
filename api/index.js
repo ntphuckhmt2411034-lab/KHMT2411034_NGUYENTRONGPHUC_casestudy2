@@ -10,6 +10,9 @@ const taskRoutes = require('./routes/taskRoutes');
 const userRoutes = require('./routes/userRoutes');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 
+// C3 - API chia se cong viec
+const taskShareRoutes = require('./routes/taskShareRoutes');
+
 const app = express();
 
 app.use(express.json());
@@ -31,8 +34,11 @@ app.use('/api/tasks', taskRoutes);
 // Module C1 - Tim kiem nguoi dung
 app.use('/api/users', userRoutes);
 
-// Module C1 - Giao cong viec cho nhieu nguoi
+// Module C1, C2 - Giao viec va chi dinh nguoi phu trach chinh
 app.use('/api/tasks', assignmentRoutes);
+
+// Module C3 - Chia se cong viec cho nhieu nguoi
+app.use('/api/tasks', taskShareRoutes);
 
 const PORT = process.env.PORT || 5000;
 

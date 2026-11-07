@@ -2,7 +2,9 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
+
 const Task = require('../models/Task');
+const TaskShare = require('../models/TaskShare');
 
 const router = express.Router();
 
@@ -50,29 +52,55 @@ function requireAuth(req, res, next) {
 }
 
 // =====================================================
-// B1 - Xem danh sach cong viec
+// B1 + C3 - Xem danh sach cong viec
 // GET /api/tasks
 // =====================================================
 router.get('/', requireAuth, async (req, res) => {
   try {
     const userId = req.userId;
 
+    // C3: Tim cac cong viec da chia se cho nguoi dang nhap
+    const shares = await TaskShare.find({
+      userId
+    })
+      .select('taskId permission')
+      .lean();
+
+    const sharedTaskIds = shares.map(share => share.taskId);
+
+    const sharePermissions = new Map(
+      shares.map(share => [
+        share.taskId.toString(),
+        share.permission
+      ])
+    );
+
+    // Giu cac quyen xem cu va bo sung task_shares
     const tasks = await Task.find({
       $or: [
         { createdBy: userId },
         { assignedTo: userId },
         { assigneeIds: userId },
-        { sharedWith: userId }
+        { sharedWith: userId },
+        { _id: { $in: sharedTaskIds } }
       ]
     })
       .sort({ createdAt: -1 })
       .lean();
 
+    // C3: Tra thong tin quyen chia se de Flutter phan loai
+    const resultTasks = tasks.map(task => ({
+      ...task,
+      sharePermission:
+        sharePermissions.get(task._id.toString()) ?? null
+    }));
+
     return res.status(200).json({
       message: 'Lay danh sach cong viec thanh cong',
-      total: tasks.length,
-      tasks
+      total: resultTasks.length,
+      tasks: resultTasks
     });
+
   } catch (error) {
     console.error('Loi lay danh sach:', error.message);
 
@@ -83,7 +111,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // =====================================================
-// B2.1 - Xem chi tiet cong viec
+// B2.1 + C3 - Xem chi tiet cong viec
 // GET /api/tasks/:id
 // =====================================================
 router.get('/:id', requireAuth, async (req, res) => {
@@ -96,16 +124,29 @@ router.get('/:id', requireAuth, async (req, res) => {
       });
     }
 
-    // Chi cho phep nguoi co quyen xem cong viec
-    const task = await Task.findOne({
-      _id: taskId,
-      $or: [
+    // C3: Kiem tra nguoi dang nhap co duoc chia se khong
+    const share = await TaskShare.findOne({
+      taskId,
+      userId: req.userId
+    })
+      .select('permission')
+      .lean();
+
+    // Neu khong co chia se C3, chi cho phep cac quyen cu
+    const accessConditions = {
+      _id: taskId
+    };
+
+    if (!share) {
+      accessConditions.$or = [
         { createdBy: req.userId },
         { assignedTo: req.userId },
         { assigneeIds: req.userId },
         { sharedWith: req.userId }
-      ]
-    }).lean();
+      ];
+    }
+
+    const task = await Task.findOne(accessConditions).lean();
 
     if (!task) {
       return res.status(404).json({
@@ -115,8 +156,12 @@ router.get('/:id', requireAuth, async (req, res) => {
 
     return res.status(200).json({
       message: 'Lay chi tiet cong viec thanh cong',
-      task
+      task: {
+        ...task,
+        sharePermission: share?.permission ?? null
+      }
     });
+
   } catch (error) {
     console.error('Loi xem chi tiet cong viec:', error.message);
 
@@ -141,14 +186,12 @@ router.post('/', requireAuth, async (req, res) => {
       dueDate
     } = req.body || {};
 
-    // Kiem tra ten cong viec
     if (typeof title !== 'string' || !title.trim()) {
       return res.status(400).json({
         message: 'Vui long nhap ten cong viec'
       });
     }
 
-    // Kiem tra mo ta
     if (
       description !== undefined &&
       typeof description !== 'string'
@@ -158,7 +201,6 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
-    // Gia tri trang thai hop le
     const validStatuses = [
       'chua_thuc_hien',
       'dang_thuc_hien',
@@ -174,7 +216,6 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
-    // Gia tri do uu tien hop le
     const validPriorities = [
       'thap',
       'trung_binh',
@@ -190,7 +231,6 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
-    // Chuyen chuoi ngay thang sang Date
     function parseDate(value) {
       if (
         value === undefined ||
@@ -210,7 +250,6 @@ router.post('/', requireAuth, async (req, res) => {
     const parsedStartDate = parseDate(startDate);
     const parsedDueDate = parseDate(dueDate);
 
-    // Kiem tra ngay thang hop le
     if (
       (parsedStartDate &&
         Number.isNaN(parsedStartDate.getTime())) ||
@@ -222,7 +261,6 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
-    // Han hoan thanh khong duoc truoc ngay bat dau
     if (
       parsedStartDate &&
       parsedDueDate &&
@@ -233,7 +271,6 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
-    // Tao cong viec trong MongoDB
     const task = await Task.create({
       title: title.trim(),
       description: description ?? '',
@@ -241,8 +278,6 @@ router.post('/', requireAuth, async (req, res) => {
       priority: priority ?? 'trung_binh',
       startDate: parsedStartDate,
       dueDate: parsedDueDate,
-
-      // Lay ID nguoi tao tu JWT
       createdBy: req.userId
     });
 
@@ -250,6 +285,7 @@ router.post('/', requireAuth, async (req, res) => {
       message: 'Tao cong viec thanh cong',
       task
     });
+
   } catch (error) {
     console.error('Loi tao cong viec:', error.message);
 
@@ -265,10 +301,6 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// =====================================================
-// Export router - luon nam o cuoi file
-// =====================================================
-
 /**
  * B2.3 - Chinh sua cong viec
  * PUT /api/tasks/:id
@@ -283,7 +315,8 @@ router.put('/:id', requireAuth, async (req, res) => {
       });
     }
 
-    // Chi nguoi tao moi duoc sua cong viec trong B2.3
+    // Chi nguoi tao moi duoc sua trong B2.3
+    // C3 viewer khong duoc sua
     const task = await Task.findOne({
       _id: taskId,
       createdBy: req.userId
@@ -458,14 +491,12 @@ router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const taskId = req.params.id;
 
-    // Kiem tra ID MongoDB
     if (!mongoose.isValidObjectId(taskId)) {
       return res.status(400).json({
         message: 'ID cong viec khong hop le'
       });
     }
 
-    // Chi nguoi tao moi co quyen xoa cong viec
     const task = await Task.findOneAndDelete({
       _id: taskId,
       createdBy: req.userId
@@ -499,14 +530,12 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
   try {
     const taskId = req.params.id;
 
-    // Kiem tra ID MongoDB
     if (!mongoose.isValidObjectId(taskId)) {
       return res.status(400).json({
         message: 'ID cong viec khong hop le'
       });
     }
 
-    // Kiem tra du lieu gui len
     const body = req.body;
 
     if (
@@ -533,8 +562,7 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
       });
     }
 
-    // B3: Chi nguoi tao duoc cap nhat trang thai.
-    // Quyen editor se duoc mo rong o Module C.
+    // C3 viewer khong duoc doi trang thai
     const task = await Task.findOne({
       _id: taskId,
       createdBy: req.userId
@@ -547,7 +575,6 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
     }
 
     task.status = body.status;
-
     await task.save();
 
     return res.status(200).json({
@@ -606,8 +633,6 @@ router.patch('/:id/priority', requireAuth, async (req, res) => {
       });
     }
 
-    // B4: Chi nguoi tao duoc thay doi do uu tien.
-    // Quyen editor se duoc bo sung trong Module C.
     const task = await Task.findOne({
       _id: taskId,
       createdBy: req.userId
@@ -626,6 +651,7 @@ router.patch('/:id/priority', requireAuth, async (req, res) => {
       message: 'Cap nhat do uu tien thanh cong',
       task
     });
+
   } catch (error) {
     console.error('Loi cap nhat do uu tien:', error.message);
 
