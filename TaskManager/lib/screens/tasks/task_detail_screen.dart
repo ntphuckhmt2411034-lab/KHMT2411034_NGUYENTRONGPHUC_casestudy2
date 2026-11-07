@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:convert';
 
@@ -6,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'task_edit_screen.dart';
+import '../assignment/assign_task_screen.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final String token;
@@ -47,10 +47,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   Map<String, dynamic>? _task;
 
   bool get _isBusy =>
-      _isLoading ||
-          _isDeleting ||
-          _isUpdatingStatus ||
-          _isUpdatingPriority;
+      _isLoading || _isDeleting || _isUpdatingStatus || _isUpdatingPriority;
 
   // JWT chi dung de an/hien nut.
   // Backend kiem tra quyen thuc te.
@@ -60,20 +57,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       if (parts.length != 3) return null;
 
       final payload = jsonDecode(
-        utf8.decode(
-          base64Url.decode(
-            base64Url.normalize(parts[1]),
-          ),
-        ),
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
       );
 
       if (payload is! Map) return null;
 
       final userId = payload['userId'];
 
-      return userId is String && userId.isNotEmpty
-          ? userId
-          : null;
+      return userId is String && userId.isNotEmpty ? userId : null;
     } catch (_) {
       return null;
     }
@@ -106,10 +97,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   // B2.1 - Xem chi tiet cong viec.
   Future<void> _loadDetail() async {
-    if (!mounted ||
-        _isDeleting ||
-        _isUpdatingStatus ||
-        _isUpdatingPriority) {
+    if (!mounted || _isDeleting || _isUpdatingStatus || _isUpdatingPriority) {
       return;
     }
 
@@ -120,12 +108,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     });
 
     try {
-      final response = await http.get(
-        Uri.parse('$apiUrl/${widget.taskId}'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-        },
-      ).timeout(const Duration(seconds: 20));
+      final response = await http
+          .get(
+            Uri.parse('$apiUrl/${widget.taskId}'),
+            headers: {'Authorization': 'Bearer ${widget.token}'},
+          )
+          .timeout(const Duration(seconds: 20));
 
       if (!mounted) return;
 
@@ -136,8 +124,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         return;
       }
 
-      if (response.statusCode == 403 ||
-          response.statusCode == 404) {
+      if (response.statusCode == 403 || response.statusCode == 404) {
         setState(() {
           _error = 'Không tìm thấy công việc hoặc bạn không có quyền xem.';
         });
@@ -151,9 +138,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         return;
       }
 
-      final data = jsonDecode(
-        utf8.decode(response.bodyBytes),
-      );
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
 
       if (data is! Map || data['task'] is! Map) {
         setState(() {
@@ -163,9 +148,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       }
 
       setState(() {
-        _task = Map<String, dynamic>.from(
-          data['task'] as Map,
-        );
+        _task = Map<String, dynamic>.from(data['task'] as Map);
       });
     } on TimeoutException {
       if (mounted) {
@@ -195,10 +178,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     final updated = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => TaskEditScreen(
-          token: widget.token,
-          taskId: widget.taskId,
-        ),
+        builder: (_) =>
+            TaskEditScreen(token: widget.token, taskId: widget.taskId),
       ),
     );
 
@@ -217,14 +198,44 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
+  // C1 - Mo man hinh giao viec (chi nguoi tao).
+  Future<void> _openAssignTask() async {
+    if (!_canManage || _isBusy) return;
+
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AssignTaskScreen(
+          token: widget.token,
+          taskId: widget.taskId,
+          taskTitle: _task?['title']?.toString() ?? 'Công việc',
+          existingIds: [
+            if (_idOf(_task?['assignedTo']) != null)
+              _idOf(_task?['assignedTo'])!,
+            if (_task?['assigneeIds'] is List)
+              ...(_task!['assigneeIds'] as List).map(_idOf).whereType<String>(),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    if (updated == true) {
+      _wasUpdated = true;
+      await _loadDetail();
+      if (mounted && _error == null) {
+        _showMessage('Giao công việc thành công!');
+      }
+    }
+  }
+
   // B3 - Hop thoai doi trang thai.
   Future<void> _openStatusDialog() async {
     if (!_canManage || _isBusy) return;
 
     final currentStatus = _task?['status']?.toString();
 
-    String selectedStatus =
-    statusOptions.containsKey(currentStatus)
+    String selectedStatus = statusOptions.containsKey(currentStatus)
         ? currentStatus!
         : 'chua_thuc_hien';
 
@@ -275,11 +286,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   onPressed: selectedStatus == currentStatus
                       ? null
                       : () {
-                    Navigator.pop(
-                      dialogContext,
-                      selectedStatus,
-                    );
-                  },
+                          Navigator.pop(dialogContext, selectedStatus);
+                        },
                   child: const Text('Lưu trạng thái'),
                 ),
               ],
@@ -304,23 +312,21 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     });
 
     try {
-      final response = await http.patch(
-        Uri.parse('$apiUrl/${widget.taskId}/status'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'status': newStatus,
-        }),
-      ).timeout(const Duration(seconds: 20));
+      final response = await http
+          .patch(
+            Uri.parse('$apiUrl/${widget.taskId}/status'),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'status': newStatus}),
+          )
+          .timeout(const Duration(seconds: 20));
 
       if (!mounted) return;
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(
-          utf8.decode(response.bodyBytes),
-        );
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
 
         if (data is! Map || data['task'] is! Map) {
           _showMessage('Dữ liệu cập nhật không hợp lệ.');
@@ -328,9 +334,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         }
 
         setState(() {
-          _task = Map<String, dynamic>.from(
-            data['task'] as Map,
-          );
+          _task = Map<String, dynamic>.from(data['task'] as Map);
           _wasUpdated = true;
         });
 
@@ -339,22 +343,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       }
 
       _showMessage(
-        _responseMessage(
-          response,
-          'Không thể cập nhật trạng thái.',
-        ),
+        _responseMessage(response, 'Không thể cập nhật trạng thái.'),
       );
     } on TimeoutException {
       if (mounted) {
-        _showMessage(
-          'Cập nhật trạng thái thất bại: Kết nối quá thời gian.',
-        );
+        _showMessage('Cập nhật trạng thái thất bại: Kết nối quá thời gian.');
       }
     } catch (_) {
       if (mounted) {
-        _showMessage(
-          'Không thể kết nối backend để cập nhật trạng thái.',
-        );
+        _showMessage('Không thể kết nối backend để cập nhật trạng thái.');
       }
     } finally {
       if (mounted) {
@@ -371,8 +368,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
     final currentPriority = _task?['priority']?.toString();
 
-    String selectedPriority =
-    priorityOptions.containsKey(currentPriority)
+    String selectedPriority = priorityOptions.containsKey(currentPriority)
         ? currentPriority!
         : 'trung_binh';
 
@@ -387,9 +383,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Chọn mức độ ưu tiên cho công việc:',
-                  ),
+                  const Text('Chọn mức độ ưu tiên cho công việc:'),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     initialValue: selectedPriority,
@@ -425,11 +419,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   onPressed: selectedPriority == currentPriority
                       ? null
                       : () {
-                    Navigator.pop(
-                      dialogContext,
-                      selectedPriority,
-                    );
-                  },
+                          Navigator.pop(dialogContext, selectedPriority);
+                        },
                   child: const Text('Lưu ưu tiên'),
                 ),
               ],
@@ -454,23 +445,21 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     });
 
     try {
-      final response = await http.patch(
-        Uri.parse('$apiUrl/${widget.taskId}/priority'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'priority': newPriority,
-        }),
-      ).timeout(const Duration(seconds: 20));
+      final response = await http
+          .patch(
+            Uri.parse('$apiUrl/${widget.taskId}/priority'),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'priority': newPriority}),
+          )
+          .timeout(const Duration(seconds: 20));
 
       if (!mounted) return;
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(
-          utf8.decode(response.bodyBytes),
-        );
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
 
         if (data is! Map || data['task'] is! Map) {
           _showMessage('Dữ liệu cập nhật không hợp lệ.');
@@ -478,9 +467,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         }
 
         setState(() {
-          _task = Map<String, dynamic>.from(
-            data['task'] as Map,
-          );
+          _task = Map<String, dynamic>.from(data['task'] as Map);
           _wasUpdated = true;
         });
 
@@ -489,22 +476,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       }
 
       _showMessage(
-        _responseMessage(
-          response,
-          'Không thể cập nhật độ ưu tiên.',
-        ),
+        _responseMessage(response, 'Không thể cập nhật độ ưu tiên.'),
       );
     } on TimeoutException {
       if (mounted) {
-        _showMessage(
-          'Cập nhật độ ưu tiên thất bại: Kết nối quá thời gian.',
-        );
+        _showMessage('Cập nhật độ ưu tiên thất bại: Kết nối quá thời gian.');
       }
     } catch (_) {
       if (mounted) {
-        _showMessage(
-          'Không thể kết nối backend để cập nhật độ ưu tiên.',
-        );
+        _showMessage('Không thể kết nối backend để cập nhật độ ưu tiên.');
       }
     } finally {
       if (mounted) {
@@ -516,23 +496,17 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 
   // Doc thong bao loi backend.
-  String _responseMessage(
-      http.Response response,
-      String fallback,
-      ) {
+  String _responseMessage(http.Response response, String fallback) {
     if (response.statusCode == 401) {
       return 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.';
     }
 
-    if (response.statusCode == 403 ||
-        response.statusCode == 404) {
+    if (response.statusCode == 403 || response.statusCode == 404) {
       return 'Không tìm thấy công việc hoặc bạn không có quyền thao tác.';
     }
 
     try {
-      final data = jsonDecode(
-        utf8.decode(response.bodyBytes),
-      );
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
 
       if (data is Map && data['message'] is String) {
         return data['message'] as String;
@@ -558,7 +532,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           title: const Text('Xác nhận xóa công việc'),
           content: Text(
             'Bạn có chắc chắn muốn xóa "$taskTitle"?\n\n'
-                'Công việc sẽ bị xóa vĩnh viễn và không thể khôi phục.',
+            'Công việc sẽ bị xóa vĩnh viễn và không thể khôi phục.',
           ),
           actions: [
             TextButton(
@@ -571,9 +545,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.red,
-              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('Xóa công việc'),
             ),
           ],
@@ -595,40 +567,30 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     });
 
     try {
-      final response = await http.delete(
-        Uri.parse('$apiUrl/${widget.taskId}'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-        },
-      ).timeout(const Duration(seconds: 20));
+      final response = await http
+          .delete(
+            Uri.parse('$apiUrl/${widget.taskId}'),
+            headers: {'Authorization': 'Bearer ${widget.token}'},
+          )
+          .timeout(const Duration(seconds: 20));
 
       if (!mounted) return;
 
-      if (response.statusCode == 200 ||
-          response.statusCode == 204) {
+      if (response.statusCode == 200 || response.statusCode == 204) {
         _showMessage('Xóa công việc thành công!');
 
         Navigator.pop(context, true);
         return;
       }
 
-      _showMessage(
-        _responseMessage(
-          response,
-          'Không thể xóa công việc.',
-        ),
-      );
+      _showMessage(_responseMessage(response, 'Không thể xóa công việc.'));
     } on TimeoutException {
       if (mounted) {
-        _showMessage(
-          'Xóa thất bại: Kết nối quá thời gian.',
-        );
+        _showMessage('Xóa thất bại: Kết nối quá thời gian.');
       }
     } catch (_) {
       if (mounted) {
-        _showMessage(
-          'Không thể kết nối backend để xóa công việc.',
-        );
+        _showMessage('Không thể kết nối backend để xóa công việc.');
       }
     } finally {
       if (mounted) {
@@ -642,32 +604,35 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   void _showMessage(String message) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   // Tra ve true neu da sua, xoa, doi trang thai/uu tien.
   void _goBack() {
-    if (_isDeleting ||
-        _isUpdatingStatus ||
-        _isUpdatingPriority) {
+    if (_isDeleting || _isUpdatingStatus || _isUpdatingPriority) {
       return;
     }
 
     Navigator.pop(context, _wasUpdated);
   }
 
+  int _assignedCount(Map<String, dynamic> task) {
+    final ids = <String>{};
+    final legacy = _idOf(task['assignedTo']);
+    if (legacy != null) ids.add(legacy);
+    if (task['assigneeIds'] is List) {
+      ids.addAll((task['assigneeIds'] as List).map(_idOf).whereType<String>());
+    }
+    return ids.length;
+  }
+
   String _statusLabel(dynamic status) {
-    return statusOptions[status?.toString()] ??
-        'Không xác định';
+    return statusOptions[status?.toString()] ?? 'Không xác định';
   }
 
   String _priorityLabel(dynamic priority) {
-    return priorityOptions[priority?.toString()] ??
-        'Không xác định';
+    return priorityOptions[priority?.toString()] ?? 'Không xác định';
   }
 
   String _dateLabel(dynamic value) {
@@ -686,11 +651,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         '${local.year}';
   }
 
-  Widget _infoRow(
-      String label,
-      String value,
-      IconData icon,
-      ) {
+  Widget _infoRow(String label, String value, IconData icon) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
@@ -702,10 +663,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(color: Colors.grey),
-                ),
+                Text(label, style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 4),
                 Text(
                   value,
@@ -742,9 +700,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           leading: IconButton(
             tooltip: 'Quay lại',
             icon: const Icon(Icons.arrow_back),
-            onPressed: (_isDeleting ||
-                _isUpdatingStatus ||
-                _isUpdatingPriority)
+            onPressed: (_isDeleting || _isUpdatingStatus || _isUpdatingPriority)
                 ? null
                 : _goBack,
           ),
@@ -758,10 +714,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               IconButton(
                 tooltip: 'Xóa công việc',
                 onPressed: _isBusy ? null : _confirmDeleteTask,
-                icon: const Icon(
-                  Icons.delete_outline,
-                  color: Colors.red,
-                ),
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
               ),
             ],
             IconButton(
@@ -772,169 +725,178 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           ],
         ),
         body: _isLoading
-            ? const Center(
-          child: CircularProgressIndicator(),
-        )
+            ? const Center(child: CircularProgressIndicator())
             : _error != null
             ? Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _error!,
-                  textAlign: TextAlign.center,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_error!, textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: _loadDetail,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Thử lại'),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: _loadDetail,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Thử lại'),
-                ),
-              ],
-            ),
-          ),
-        )
+              )
             : task == null
-            ? const Center(
-          child: Text('Không có dữ liệu công việc.'),
-        )
+            ? const Center(child: Text('Không có dữ liệu công việc.'))
             : SafeArea(
-          child: Stack(
-            children: [
-              ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            task['title']?.toString() ??
-                                'Không có tiêu đề',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            task['description']
-                                ?.toString()
-                                .isNotEmpty ==
-                                true
-                                ? task['description'].toString()
-                                : 'Chưa có mô tả.',
-                          ),
-                          const Divider(height: 32),
-
-                          // B3 - Trang thai.
-                          _infoRow(
-                            'Trạng thái',
-                            _statusLabel(task['status']),
-                            Icons.pending_actions,
-                          ),
-
-                          if (_canManage) ...[
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _isBusy
-                                    ? null
-                                    : _openStatusDialog,
-                                icon: const Icon(
-                                  Icons.sync_alt,
+                child: Stack(
+                  children: [
+                    ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  task['title']?.toString() ??
+                                      'Không có tiêu đề',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall,
                                 ),
-                                label: const Text(
-                                  'Đổi trạng thái',
+                                const SizedBox(height: 12),
+                                Text(
+                                  task['description']?.toString().isNotEmpty ==
+                                          true
+                                      ? task['description'].toString()
+                                      : 'Chưa có mô tả.',
                                 ),
-                              ),
-                            ),
-                          ],
+                                const Divider(height: 32),
 
-                          const Divider(height: 24),
+                                // B3 - Trang thai.
+                                _infoRow(
+                                  'Trạng thái',
+                                  _statusLabel(task['status']),
+                                  Icons.pending_actions,
+                                ),
 
-                          // B4 - Do uu tien.
-                          _infoRow(
-                            'Độ ưu tiên',
-                            _priorityLabel(task['priority']),
-                            Icons.flag_outlined,
-                          ),
+                                if (_canManage) ...[
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _isBusy
+                                          ? null
+                                          : _openStatusDialog,
+                                      icon: const Icon(Icons.sync_alt),
+                                      label: const Text('Đổi trạng thái'),
+                                    ),
+                                  ),
+                                ],
 
-                          if (_canManage) ...[
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _isBusy
-                                    ? null
-                                    : _openPriorityDialog,
-                                icon: const Icon(
+                                const Divider(height: 24),
+
+                                // B4 - Do uu tien.
+                                _infoRow(
+                                  'Độ ưu tiên',
+                                  _priorityLabel(task['priority']),
                                   Icons.flag_outlined,
                                 ),
-                                label: const Text(
-                                  'Đổi độ ưu tiên',
+
+                                if (_canManage) ...[
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _isBusy
+                                          ? null
+                                          : _openPriorityDialog,
+                                      icon: const Icon(Icons.flag_outlined),
+                                      label: const Text('Đổi độ ưu tiên'),
+                                    ),
+                                  ),
+                                ],
+
+                                const Divider(height: 24),
+
+                                // B2 - Ngay bat dau va han.
+                                _infoRow(
+                                  'Ngày bắt đầu',
+                                  _dateLabel(task['startDate']),
+                                  Icons.event_available_outlined,
+                                ),
+                                _infoRow(
+                                  'Hạn hoàn thành',
+                                  _dateLabel(task['dueDate']),
+                                  Icons.event_outlined,
+                                ),
+
+                                const Divider(height: 32),
+                                Text(
+                                  'Giao việc',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Số người được giao: ${_assignedCount(task)}',
+                                ),
+                                if (_canManage) ...[
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: FilledButton.icon(
+                                      onPressed: _isBusy
+                                          ? null
+                                          : _openAssignTask,
+                                      icon: const Icon(
+                                        Icons.group_add_outlined,
+                                      ),
+                                      label: const Text(
+                                        'Giao việc cho thành viên',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    if (_isDeleting || _isUpdatingStatus || _isUpdatingPriority)
+                      Positioned.fill(
+                        child: ColoredBox(
+                          color: const Color(0x66000000),
+                          child: Center(
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const CircularProgressIndicator(),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _isDeleting
+                                          ? 'Đang xóa công việc...'
+                                          : _isUpdatingStatus
+                                          ? 'Đang cập nhật trạng thái...'
+                                          : 'Đang cập nhật độ ưu tiên...',
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
-                          ],
-
-                          const Divider(height: 24),
-
-                          // B2 - Ngay bat dau va han.
-                          _infoRow(
-                            'Ngày bắt đầu',
-                            _dateLabel(task['startDate']),
-                            Icons.event_available_outlined,
-                          ),
-                          _infoRow(
-                            'Hạn hoàn thành',
-                            _dateLabel(task['dueDate']),
-                            Icons.event_outlined,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              if (_isDeleting ||
-                  _isUpdatingStatus ||
-                  _isUpdatingPriority)
-                Positioned.fill(
-                  child: ColoredBox(
-                    color: const Color(0x66000000),
-                    child: Center(
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const CircularProgressIndicator(),
-                              const SizedBox(height: 16),
-                              Text(
-                                _isDeleting
-                                    ? 'Đang xóa công việc...'
-                                    : _isUpdatingStatus
-                                    ? 'Đang cập nhật trạng thái...'
-                                    : 'Đang cập nhật độ ưu tiên...',
-                              ),
-                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
                 ),
-            ],
-          ),
-        ),
+              ),
       ),
     );
   }

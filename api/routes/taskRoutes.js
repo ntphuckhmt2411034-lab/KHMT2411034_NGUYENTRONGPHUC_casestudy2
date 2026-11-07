@@ -61,6 +61,7 @@ router.get('/', requireAuth, async (req, res) => {
       $or: [
         { createdBy: userId },
         { assignedTo: userId },
+        { assigneeIds: userId },
         { sharedWith: userId }
       ]
     })
@@ -101,6 +102,7 @@ router.get('/:id', requireAuth, async (req, res) => {
       $or: [
         { createdBy: req.userId },
         { assignedTo: req.userId },
+        { assigneeIds: req.userId },
         { sharedWith: req.userId }
       ]
     }).lean();

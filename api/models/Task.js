@@ -1,4 +1,5 @@
-﻿const mongoose = require('mongoose');
+﻿
+const mongoose = require('mongoose');
 
 const taskSchema = new mongoose.Schema(
   {
@@ -16,7 +17,11 @@ const taskSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ['chua_thuc_hien', 'dang_thuc_hien', 'da_hoan_thanh'],
+      enum: [
+        'chua_thuc_hien',
+        'dang_thuc_hien',
+        'da_hoan_thanh',
+      ],
       default: 'chua_thuc_hien',
     },
 
@@ -42,16 +47,36 @@ const taskSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Du lieu cu cua Module B
+    // Tam thoi giu lai de tuong thich
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
     },
 
-    sharedWith: [{
+    // C1 - Danh sach nhieu nguoi duoc giao
+    assigneeIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+
+    // C2 - Nguoi phu trach chinh
+    primaryAssigneeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-    }],
+      default: null,
+    },
+
+    // Du lieu chia se hien tai
+    sharedWith: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   {
     timestamps: true,
@@ -59,7 +84,11 @@ const taskSchema = new mongoose.Schema(
 );
 
 taskSchema.pre('validate', function () {
-  if (this.startDate && this.dueDate && this.dueDate < this.startDate) {
+  if (
+    this.startDate &&
+    this.dueDate &&
+    this.dueDate < this.startDate
+  ) {
     this.invalidate(
       'dueDate',
       'Hạn hoàn thành không được trước ngày bắt đầu'
