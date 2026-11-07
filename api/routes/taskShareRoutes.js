@@ -201,4 +201,132 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
   }
 });
 
+// =====================================================
+// C4 - Cap nhat quyen viewer / editor
+// PATCH /api/tasks/:id/shares/:userId/permission
+// Body: { "permission": "viewer" | "editor" }
+// =====================================================
+router.patch('/:id/shares/:userId/permission', requireAuth, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    const targetUserId = req.params.userId;
+    const permission = req.body?.permission;
+
+    if (
+      !mongoose.isValidObjectId(taskId) ||
+      !mongoose.isValidObjectId(targetUserId)
+    ) {
+      return res.status(400).json({
+        message: 'ID khong hop le'
+      });
+    }
+
+    if (
+      !req.body ||
+      typeof req.body !== 'object' ||
+      Array.isArray(req.body) ||
+      Object.keys(req.body).length !== 1 ||
+      !['viewer', 'editor'].includes(permission)
+    ) {
+      return res.status(400).json({
+        message: 'Quyen phai la viewer hoac editor'
+      });
+    }
+
+    // Chi nguoi tao cong viec moi duoc cap quyen.
+    const task = await Task.findOne({
+      _id: taskId,
+      createdBy: req.userId
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Khong tim thay cong viec hoac khong co quyen'
+      });
+    }
+
+    // Chi cap nhat nguoi da duoc chia se.
+    const share = await TaskShare.findOneAndUpdate(
+      {
+        taskId: task._id,
+        userId: targetUserId
+      },
+      {
+        $set: { permission }
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!share) {
+      return res.status(404).json({
+        message: 'Nguoi dung chua duoc chia se cong viec'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Cap nhat quyen thanh cong',
+      taskId: task._id,
+      userId: targetUserId,
+      permission: share.permission
+    });
+
+  } catch (error) {
+    console.error('Loi C4 cap nhat quyen:', error.message);
+
+    return res.status(500).json({
+      message: 'Khong the cap nhat quyen chia se'
+    });
+  }
+});
+// =====================================================
+// C4 - Lay danh sach nguoi duoc chia se
+// GET /api/tasks/:id/shares
+// =====================================================
+router.get('/:id/shares', requireAuth, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+
+    if (!mongoose.isValidObjectId(taskId)) {
+      return res.status(400).json({
+        message: 'ID cong viec khong hop le'
+      });
+    }
+
+    // Chi nguoi tao duoc xem danh sach quan ly quyen.
+    const task = await Task.findOne({
+      _id: taskId,
+      createdBy: req.userId
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Khong tim thay cong viec hoac khong co quyen'
+      });
+    }
+
+    const shares = await TaskShare.find({
+      taskId: task._id
+    })
+      .populate('userId', '_id fullName email')
+      .select('taskId userId permission sharedBy createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      message: 'Lay danh sach chia se thanh cong',
+      taskId: task._id,
+      total: shares.length,
+      shares
+    });
+  } catch (error) {
+    console.error('Loi lay danh sach chia se:', error.message);
+
+    return res.status(500).json({
+      message: 'Khong the lay danh sach chia se'
+    });
+  }
+});
 module.exports = router;

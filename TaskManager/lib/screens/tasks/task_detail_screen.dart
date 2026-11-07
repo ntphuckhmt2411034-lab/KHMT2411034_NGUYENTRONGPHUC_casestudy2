@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'task_edit_screen.dart';
 import '../assignment/assign_task_screen.dart';
 import '../sharing/share_task_screen.dart';
+import '../sharing/manage_share_permissions_screen.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final String token;
@@ -88,6 +89,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     if (userId == null || task == null) return false;
 
     return _idOf(task['createdBy']) == userId;
+  }
+
+  // C4 - Nguoi tao hoac nguoi co quyen editor duoc chinh sua.
+  bool get _canEdit {
+    if (_canManage) return true;
+
+    final task = _task;
+    if (task == null) return false;
+
+    return task['sharePermission'] == 'editor';
   }
 
   @override
@@ -174,7 +185,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   // B2.3 - Mo man hinh chinh sua.
   Future<void> _openEditTask() async {
-    if (!_canManage || _isBusy) return;
+    if (!_canEdit || _isBusy) return;
 
     final updated = await Navigator.push<bool>(
       context,
@@ -232,7 +243,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   // B3 - Hop thoai doi trang thai.
   Future<void> _openStatusDialog() async {
-    if (!_canManage || _isBusy) return;
+    if (!_canEdit || _isBusy) return;
 
     final currentStatus = _task?['status']?.toString();
 
@@ -305,7 +316,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   // B3 - PATCH /api/tasks/:id/status
   Future<void> _updateStatus(String newStatus) async {
-    if (!_canManage || _isBusy) return;
+    if (!_canEdit || _isBusy) return;
     if (!statusOptions.containsKey(newStatus)) return;
 
     setState(() {
@@ -365,7 +376,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   // B4 - Hop thoai chon do uu tien.
   Future<void> _openPriorityDialog() async {
-    if (!_canManage || _isBusy) return;
+    if (!_canEdit || _isBusy) return;
 
     final currentPriority = _task?['priority']?.toString();
 
@@ -438,7 +449,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   // B4 - PATCH /api/tasks/:id/priority
   Future<void> _updatePriority(String newPriority) async {
-    if (!_canManage || _isBusy) return;
+    if (!_canEdit || _isBusy) return;
     if (!priorityOptions.containsKey(newPriority)) return;
 
     setState(() {
@@ -780,18 +791,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 : _goBack,
           ),
           actions: [
-            if (!_isLoading && _error == null && _canManage) ...[
+            if (!_isLoading && _error == null && _canEdit)
               IconButton(
                 tooltip: 'Chỉnh sửa',
                 onPressed: _isBusy ? null : _openEditTask,
                 icon: const Icon(Icons.edit_outlined),
               ),
+            if (!_isLoading && _error == null && _canManage)
               IconButton(
                 tooltip: 'Xóa công việc',
                 onPressed: _isBusy ? null : _confirmDeleteTask,
                 icon: const Icon(Icons.delete_outline, color: Colors.red),
               ),
-            ],
             IconButton(
               tooltip: 'Làm mới',
               onPressed: _isBusy ? null : _loadDetail,
@@ -856,7 +867,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                             Icons.pending_actions,
                           ),
 
-                          if (_canManage) ...[
+                          if (_canEdit) ...[
                             const SizedBox(height: 8),
                             SizedBox(
                               width: double.infinity,
@@ -879,7 +890,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                             Icons.flag_outlined,
                           ),
 
-                          if (_canManage) ...[
+                          if (_canEdit) ...[
                             const SizedBox(height: 8),
                             SizedBox(
                               width: double.infinity,
@@ -960,6 +971,35 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                                       },
                                 icon: const Icon(Icons.share_outlined),
                                 label: const Text('Chia sẻ công việc'),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _isBusy
+                                    ? null
+                                    : () async {
+                                        await Navigator.push<bool>(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                ManageSharePermissionsScreen(
+                                              token: widget.token,
+                                              taskId: widget.taskId,
+                                            ),
+                                          ),
+                                        );
+                                        if (mounted) {
+                                          await _loadDetail();
+                                        }
+                                      },
+                                icon: const Icon(
+                                  Icons.admin_panel_settings_outlined,
+                                ),
+                                label: const Text(
+                                  'Quản lý quyền chia sẻ',
+                                ),
                               ),
                             ),
                           ],

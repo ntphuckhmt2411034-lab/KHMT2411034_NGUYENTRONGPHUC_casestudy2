@@ -315,17 +315,29 @@ router.put('/:id', requireAuth, async (req, res) => {
       });
     }
 
-    // Chi nguoi tao moi duoc sua trong B2.3
-    // C3 viewer khong duoc sua
-    const task = await Task.findOne({
-      _id: taskId,
-      createdBy: req.userId
-    });
+    // C4: Nguoi tao hoac nguoi duoc chia se quyen editor duoc sua.
+    const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
-        message: 'Khong tim thay cong viec hoac khong co quyen sua'
+        message: 'Khong tim thay cong viec'
       });
+    }
+
+    const isCreator = task.createdBy.toString() === req.userId;
+
+    if (!isCreator) {
+      const editorShare = await TaskShare.findOne({
+        taskId: task._id,
+        userId: req.userId,
+        permission: 'editor'
+      });
+
+      if (!editorShare) {
+        return res.status(403).json({
+          message: 'Ban khong co quyen chinh sua cong viec'
+        });
+      }
     }
 
     const body = req.body;
@@ -563,15 +575,29 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
     }
 
     // C3 viewer khong duoc doi trang thai
-    const task = await Task.findOne({
-      _id: taskId,
-      createdBy: req.userId
-    });
+    // C4: Chi nguoi tao hoac editor duoc cap nhat.
+    const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
-        message: 'Khong tim thay cong viec hoac khong co quyen cap nhat'
+        message: 'Khong tim thay cong viec'
       });
+    }
+
+    const isCreator = task.createdBy.toString() === req.userId;
+
+    if (!isCreator) {
+      const editorShare = await TaskShare.findOne({
+        taskId: task._id,
+        userId: req.userId,
+        permission: 'editor'
+      });
+
+      if (!editorShare) {
+        return res.status(403).json({
+          message: 'Ban khong co quyen cap nhat cong viec'
+        });
+      }
     }
 
     task.status = body.status;
@@ -633,15 +659,29 @@ router.patch('/:id/priority', requireAuth, async (req, res) => {
       });
     }
 
-    const task = await Task.findOne({
-      _id: taskId,
-      createdBy: req.userId
-    });
+    // C4: Chi nguoi tao hoac editor duoc cap nhat.
+    const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
-        message: 'Khong tim thay cong viec hoac khong co quyen cap nhat'
+        message: 'Khong tim thay cong viec'
       });
+    }
+
+    const isCreator = task.createdBy.toString() === req.userId;
+
+    if (!isCreator) {
+      const editorShare = await TaskShare.findOne({
+        taskId: task._id,
+        userId: req.userId,
+        permission: 'editor'
+      });
+
+      if (!editorShare) {
+        return res.status(403).json({
+          message: 'Ban khong co quyen cap nhat cong viec'
+        });
+      }
     }
 
     task.priority = body.priority;
