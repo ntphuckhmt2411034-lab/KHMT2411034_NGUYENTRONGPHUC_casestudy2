@@ -181,4 +181,89 @@ router.post('/:id/assignees', requireAuth, async (req, res) => {
   }
 });
 
+// =====================================================
+// C2 - Chi dinh nguoi phu trach chinh
+// PATCH /api/tasks/:id/assignees/:userId
+// Body: { "isPrimary": true }
+// =====================================================
+router.patch('/:id/assignees/:userId', requireAuth, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+
+    if (!mongoose.isValidObjectId(id) ||
+        !mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({
+        message: 'ID cong viec hoac nguoi dung khong hop le'
+      });
+    }
+
+    if (!req.body ||
+        req.body.isPrimary !== true ||
+        Object.keys(req.body).length !== 1) {
+      return res.status(400).json({
+        message: 'Yeu cau isPrimary phai bang true'
+      });
+    }
+
+    // Chi nguoi tao cong viec duoc chi dinh
+    const task = await Task.findOne({
+      _id: id,
+      createdBy: req.userId
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Khong tim thay cong viec hoac khong co quyen'
+      });
+    }
+
+    const assignedIds = (task.assigneeIds || [])
+      .map(value => value.toString().toLowerCase());
+
+    // Tuong thich du lieu Module B
+    if (task.assignedTo) {
+      assignedIds.push(task.assignedTo.toString().toLowerCase());
+    }
+
+    if (!assignedIds.includes(userId.toLowerCase())) {
+      return res.status(400).json({
+        message: 'Nguoi duoc chon chua duoc giao cong viec'
+      });
+    }
+
+    const user = await User.findById(userId)
+      .select('_id fullName email')
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'Nguoi dung khong ton tai'
+      });
+    }
+
+    // Chi thay doi nguoi phu trach chinh
+    task.primaryAssigneeId = user._id;
+    await task.save();
+
+    return res.status(200).json({
+      message: 'Chi dinh nguoi phu trach chinh thanh cong',
+      taskId: task._id,
+      primaryAssigneeId: task.primaryAssigneeId,
+      primaryAssignee: user
+    });
+  } catch (error) {
+    console.error('Loi C2:', error.message);
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        message: 'Du lieu chi dinh khong hop le'
+      });
+    }
+
+    return res.status(500).json({
+      message: 'Khong the chi dinh nguoi phu trach chinh'
+    });
+  }
+});
+
 module.exports = router;

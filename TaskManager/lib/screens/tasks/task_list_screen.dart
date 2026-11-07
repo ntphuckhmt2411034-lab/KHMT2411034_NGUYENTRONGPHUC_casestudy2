@@ -156,7 +156,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
         if (selectedId != 'all' &&
             selectedId != 'unassigned' &&
-            !_tasks.any((task) => _idOf(task['assignedTo']) == selectedId)) {
+            !_tasks.any((task) => _assigneeIdsOf(task).contains(selectedId))) {
           _assigneeFilter = 'all';
         }
       });
@@ -226,6 +226,22 @@ class _TaskListScreenState extends State<TaskListScreen> {
     return values.any((value) => _idOf(value) == userId);
   }
 
+  // C1/C2 - Ho tro ca assignedTo cu va danh sach assigneeIds moi.
+  Set<String> _assigneeIdsOf(Map<String, dynamic> task) {
+    final result = <String>{};
+    final legacyId = _idOf(task['assignedTo']);
+    if (legacyId != null && legacyId.isNotEmpty) result.add(legacyId);
+
+    final values = task['assigneeIds'];
+    if (values is List) {
+      for (final value in values) {
+        final id = _idOf(value);
+        if (id != null && id.isNotEmpty) result.add(id);
+      }
+    }
+    return result;
+  }
+
   // B6 - Danh sach nguoi duoc giao.
   Map<String, String> get _assigneeOptions {
     final options = <String, String>{
@@ -234,28 +250,32 @@ class _TaskListScreenState extends State<TaskListScreen> {
     };
 
     for (final task in _tasks) {
-      final value = task['assignedTo'];
-      final id = _idOf(value);
+      final assigned = <dynamic>[
+        task['assignedTo'],
+        if (task['assigneeIds'] is List) ...(task['assigneeIds'] as List),
+      ];
 
-      if (id == null || id.isEmpty) continue;
+      for (final value in assigned) {
+        final id = _idOf(value);
+        if (id == null || id.isEmpty) continue;
 
-      String label = '';
-
-      if (value is Map) {
-        final displayName =
-            value['fullName'] ?? value['name'] ?? value['email'];
-
-        label = displayName?.toString() ?? '';
+        String label = '';
+        if (value is Map) {
+          label =
+              (value['fullName'] ?? value['name'] ?? value['email'])
+                  ?.toString() ??
+              '';
+        }
+        if (label.trim().isEmpty) {
+          label = id == _currentUserId
+              ? 'Tôi'
+              : 'Tài khoản ${id.length > 8 ? id.substring(0, 8) : id}...';
+        }
+        // Uu tien ten khi API tra ve thong tin nguoi dung.
+        if (!options.containsKey(id) || value is Map) {
+          options[id] = label;
+        }
       }
-
-      if (label.trim().isEmpty) {
-        label = id == _currentUserId
-            ? 'Tôi'
-            : 'Tài khoản '
-                  '${id.length > 8 ? id.substring(0, 8) : id}...';
-      }
-
-      options[id] = label;
     }
 
     return options;
@@ -396,7 +416,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
             break;
 
           case 'assigned':
-            matchesScope = _idOf(task['assignedTo']) == userId;
+            matchesScope = _assigneeIdsOf(task).contains(userId);
             break;
 
           case 'shared':
@@ -430,16 +450,12 @@ class _TaskListScreenState extends State<TaskListScreen> {
       }
 
       // B6.4 - Loc nguoi duoc giao.
-      final assigneeId = _idOf(task['assignedTo']);
+      final assignedIds = _assigneeIdsOf(task);
 
       if (_assigneeFilter == 'unassigned') {
-        if (assigneeId != null && assigneeId.isNotEmpty) {
-          return false;
-        }
+        if (assignedIds.isNotEmpty) return false;
       } else if (_assigneeFilter != 'all') {
-        if (assigneeId != _assigneeFilter) {
-          return false;
-        }
+        if (!assignedIds.contains(_assigneeFilter)) return false;
       }
 
       return true;
@@ -713,6 +729,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
     final dueDate = _dateLabel(task['dueDate']);
 
+    // C2 - Nhan vai tro tren danh sach cong viec.
+    final primaryId = _idOf(task['primaryAssigneeId']);
+    final isPrimary =
+        primaryId != null &&
+        primaryId.isNotEmpty &&
+        primaryId.toLowerCase() == _currentUserId?.toLowerCase();
+    final hasPrimary = primaryId != null && primaryId.isNotEmpty;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
@@ -765,6 +789,46 @@ class _TaskListScreenState extends State<TaskListScreen> {
               if (description.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(description),
+              ],
+
+              if (isPrimary) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3CD),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.star_rounded,
+                        size: 20,
+                        color: Color(0xFFB77900),
+                      ),
+                      SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Bạn là người phụ trách chính',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF805500),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (hasPrimary) ...[
+                const SizedBox(height: 10),
+                const Chip(
+                  avatar: Icon(Icons.star_outline, size: 18),
+                  label: Text('Đã có người phụ trách chính'),
+                ),
               ],
 
               const SizedBox(height: 12),
