@@ -37,6 +37,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
   // B7 - Sap xep cong viec.
   String _sortBy = 'created_desc';
 
+  // Giao dien gon: bo loc nang cao dong theo mac dinh.
+  bool _showAdvancedFilters = false;
+
   static const Map<String, String> statusOptions = {
     'all': 'Tất cả trạng thái',
     'chua_thuc_hien': 'Chưa thực hiện',
@@ -428,61 +431,86 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }).toList();
   }
 
-  // C7 - Tien do duoc tinh tren nhom dang chon, khong theo bo loc tim kiem.
+  // C7 - Tom tat tien do gon, theo nhom vai tro dang chon.
   Widget _buildProgressSummary() {
     final tasks = _scopeTasks;
     final total = tasks.length;
-    final pending = tasks
-        .where((task) => task['status'] == 'chua_thuc_hien')
-        .length;
+    final pending = tasks.where((t) => t['status'] == 'chua_thuc_hien').length;
     final inProgress = tasks
-        .where((task) => task['status'] == 'dang_thuc_hien')
+        .where((t) => t['status'] == 'dang_thuc_hien')
         .length;
-    final completed = tasks
-        .where((task) => task['status'] == 'da_hoan_thanh')
-        .length;
+    final completed = tasks.where((t) => t['status'] == 'da_hoan_thanh').length;
     final progress = total == 0 ? 0.0 : completed / total;
-    final label = switch (_scope) {
-      'created' => 'Tôi tạo',
-      'assigned' => 'Được giao',
-      'shared' => 'Được chia sẻ',
-      _ => 'Tất cả công việc',
-    };
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tiến độ - $label',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Đã hoàn thành $completed/$total công việc '
-              '(${(progress * 100).round()}%)',
-            ),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                Chip(label: Text('Chưa thực hiện: $pending')),
-                Chip(label: Text('Đang thực hiện: $inProgress')),
-                Chip(label: Text('Hoàn thành: $completed')),
-              ],
-            ),
-          ],
+    Widget metric(String label, int number, Color dotColor) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
         ),
+        const SizedBox(width: 5),
+        Text('$label $number', style: const TextStyle(fontSize: 11.5)),
+      ],
+    );
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F6FF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFDCE7FA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.insights_outlined,
+                size: 17,
+                color: Color(0xFF3467A8),
+              ),
+              const SizedBox(width: 7),
+              const Expanded(
+                child: Text(
+                  'Tiến độ công việc',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+              Text(
+                '${(progress * 100).round()}%',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF3467A8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: const Color(0xFFDCE7FA),
+              color: const Color(0xFF4E86D4),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 13,
+            runSpacing: 7,
+            children: [
+              metric('Chưa làm', pending, const Color(0xFF94A3B8)),
+              metric('Đang làm', inProgress, const Color(0xFFF2B75C)),
+              metric('Hoàn thành', completed, const Color(0xFF4C9A7A)),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -593,186 +621,208 @@ class _TaskListScreenState extends State<TaskListScreen> {
         '${local.year}';
   }
 
-  // B6 + B7 - Thanh tim kiem, loc va sap xep.
+  // Tim kiem luon hien; loc nang cao chi mo khi can.
   Widget _buildSearchAndFilters() {
     final assignees = _assigneeOptions;
+    final activeCount = [
+      _statusFilter != 'all',
+      _priorityFilter != 'all',
+      _assigneeFilter != 'all',
+      _sortBy != 'created_desc',
+    ].where((value) => value).length;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // B6 - Tim kiem theo ten.
           TextField(
             controller: _searchController,
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-              hintText: 'Tìm theo tên công việc...',
-              prefixIcon: const Icon(Icons.search),
+              hintText: 'Tìm công việc...',
+              prefixIcon: const Icon(Icons.search, size: 20),
               suffixIcon: _searchQuery.isEmpty
                   ? null
                   : IconButton(
                       tooltip: 'Xóa từ khóa',
-                      icon: const Icon(Icons.close),
                       onPressed: () {
                         _searchController.clear();
-
-                        setState(() {
-                          _searchQuery = '';
-                        });
+                        setState(() => _searchQuery = '');
                       },
+                      icon: const Icon(Icons.close, size: 19),
                     ),
-              border: const OutlineInputBorder(),
+              filled: true,
+              fillColor: const Color(0xFFF6F8FC),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
               isDense: true,
             ),
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-              });
-            },
+            onChanged: (value) => setState(() => _searchQuery = value),
           ),
-
-          const SizedBox(height: 12),
-
-          // B6 - Loc trang thai va do uu tien.
+          const SizedBox(height: 6),
           Row(
             children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  key: ValueKey('status-$_statusFilter'),
-                  initialValue: _statusFilter,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Trạng thái',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  items: statusOptions.entries.map((entry) {
-                    return DropdownMenuItem<String>(
-                      value: entry.key,
-                      child: Text(entry.value, overflow: TextOverflow.ellipsis),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-
-                    setState(() {
-                      _statusFilter = value;
-                    });
-                  },
+              TextButton.icon(
+                onPressed: () => setState(
+                  () => _showAdvancedFilters = !_showAdvancedFilters,
+                ),
+                icon: Icon(
+                  _showAdvancedFilters ? Icons.tune : Icons.tune_outlined,
+                  size: 18,
+                ),
+                label: Text(
+                  activeCount == 0
+                      ? 'Bộ lọc & sắp xếp'
+                      : 'Bộ lọc & sắp xếp ($activeCount)',
                 ),
               ),
-
-              const SizedBox(width: 10),
-
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  key: ValueKey('priority-$_priorityFilter'),
-                  initialValue: _priorityFilter,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Độ ưu tiên',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  items: priorityOptions.entries.map((entry) {
-                    return DropdownMenuItem<String>(
-                      value: entry.key,
-                      child: Text(
-                        entry.value == 'Tất cả ưu tiên'
-                            ? 'Tất cả'
-                            : entry.value,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-
-                    setState(() {
-                      _priorityFilter = value;
-                    });
-                  },
-                ),
+              Icon(
+                _showAdvancedFilters
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
+                size: 19,
+                color: const Color(0xFF64748B),
               ),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          // B6 - Loc nguoi duoc giao.
-          DropdownButtonFormField<String>(
-            key: ValueKey('assignee-$_assigneeFilter'),
-            initialValue: assignees.containsKey(_assigneeFilter)
-                ? _assigneeFilter
-                : 'all',
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Người được giao',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: assignees.entries.map((entry) {
-              return DropdownMenuItem<String>(
-                value: entry.key,
-                child: Text(entry.value, overflow: TextOverflow.ellipsis),
-              );
-            }).toList(),
-            onChanged: (value) {
-              if (value == null) return;
-
-              setState(() {
-                _assigneeFilter = value;
-              });
-            },
-          ),
-
-          const SizedBox(height: 10),
-
-          // B7 - Chon tieu chi sap xep.
-          DropdownButtonFormField<String>(
-            key: ValueKey('sort-$_sortBy'),
-            initialValue: _sortBy,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Sắp xếp công việc',
-              prefixIcon: Icon(Icons.sort),
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: sortOptions.entries.map((entry) {
-              return DropdownMenuItem<String>(
-                value: entry.key,
-                child: Text(entry.value, overflow: TextOverflow.ellipsis),
-              );
-            }).toList(),
-            onChanged: (value) {
-              if (value == null) return;
-
-              setState(() {
-                _sortBy = value;
-              });
-            },
-          ),
-
-          const SizedBox(height: 10),
-
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Hiển thị ${_visibleTasks.length}/${_tasks.length} công việc',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
+              const Spacer(),
               if (_hasActiveFilters)
-                TextButton.icon(
+                TextButton(
                   onPressed: _clearFilters,
-                  icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
-                  label: const Text('Xóa bộ lọc'),
+                  child: const Text('Xóa lọc'),
                 ),
             ],
           ),
+          if (_showAdvancedFilters) ...[
+            const SizedBox(height: 6),
+            // B6 - Loc trang thai va do uu tien.
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    key: ValueKey('status-$_statusFilter'),
+                    initialValue: _statusFilter,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Trạng thái',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: statusOptions.entries.map((entry) {
+                      return DropdownMenuItem<String>(
+                        value: entry.key,
+                        child: Text(
+                          entry.value,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+
+                      setState(() {
+                        _statusFilter = value;
+                      });
+                    },
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    key: ValueKey('priority-$_priorityFilter'),
+                    initialValue: _priorityFilter,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Độ ưu tiên',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: priorityOptions.entries.map((entry) {
+                      return DropdownMenuItem<String>(
+                        value: entry.key,
+                        child: Text(
+                          entry.value == 'Tất cả ưu tiên'
+                              ? 'Tất cả'
+                              : entry.value,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+
+                      setState(() {
+                        _priorityFilter = value;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // B6 - Loc nguoi duoc giao.
+            DropdownButtonFormField<String>(
+              key: ValueKey('assignee-$_assigneeFilter'),
+              initialValue: assignees.containsKey(_assigneeFilter)
+                  ? _assigneeFilter
+                  : 'all',
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Người được giao',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: assignees.entries.map((entry) {
+                return DropdownMenuItem<String>(
+                  value: entry.key,
+                  child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value == null) return;
+
+                setState(() {
+                  _assigneeFilter = value;
+                });
+              },
+            ),
+
+            const SizedBox(height: 10),
+
+            // B7 - Chon tieu chi sap xep.
+            DropdownButtonFormField<String>(
+              key: ValueKey('sort-$_sortBy'),
+              initialValue: _sortBy,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Sắp xếp công việc',
+                prefixIcon: Icon(Icons.sort),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: sortOptions.entries.map((entry) {
+                return DropdownMenuItem<String>(
+                  value: entry.key,
+                  child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value == null) return;
+
+                setState(() {
+                  _sortBy = value;
+                });
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -799,7 +849,13 @@ class _TaskListScreenState extends State<TaskListScreen> {
     final hasPrimary = primaryId != null && primaryId.isNotEmpty;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFE5EAF2)),
+      ),
+      margin: const EdgeInsets.only(bottom: 10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () async {
@@ -828,7 +884,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
           }
         },
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -849,7 +905,15 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
               if (description.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Text(description),
+                Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 13,
+                  ),
+                ),
               ],
 
               if (isPrimary) ...[
@@ -892,11 +956,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 ),
               ],
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: 6,
+                runSpacing: 4,
                 children: [
                   Chip(
                     avatar: const Icon(Icons.pending_actions, size: 18),
@@ -973,22 +1037,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
               )
             : Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Tổng số công việc: ${_tasks.length}',
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                    ),
-                  ),
-
                   // B1 - Giu bon nhom cong viec.
                   if (hasUserId)
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                       child: Row(
                         children: [
                           for (final option in const [
@@ -999,11 +1052,25 @@ class _TaskListScreenState extends State<TaskListScreen> {
                           ])
                             Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
+                                horizontal: 3,
                               ),
                               child: ChoiceChip(
                                 label: Text(option.$2),
                                 selected: _scope == option.$1,
+                                showCheckmark: false,
+                                labelStyle: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: _scope == option.$1
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                ),
+                                side: BorderSide(
+                                  color: _scope == option.$1
+                                      ? const Color(0xFFB9D1F6)
+                                      : const Color(0xFFE5EAF2),
+                                ),
+                                selectedColor: const Color(0xFFE7F0FF),
+                                backgroundColor: Colors.white,
                                 onSelected: (_) {
                                   setState(() {
                                     _scope = option.$1;
@@ -1037,6 +1104,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
                         padding: const EdgeInsets.fromLTRB(0, 4, 0, 16),
                         children: [
                           _buildProgressSummary(),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(17, 1, 16, 9),
+                            child: Text(
+                              '${visibleTasks.length} công việc',
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
                           if (visibleTasks.isEmpty)
                             Padding(
                               padding: const EdgeInsets.all(24),
