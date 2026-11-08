@@ -9,7 +9,9 @@ const TaskShare = require('../models/TaskShare');
 
 const router = express.Router();
 
-// Xac thuc JWT - tuong thich Module A, B, C1 va C2
+// =====================================================
+// XAC THUC JWT - MODULE A, B VA C
+// =====================================================
 function requireAuth(req, res, next) {
   const authorization = req.headers.authorization || '';
   const match = /^Bearer\s+(\S+)$/i.exec(authorization);
@@ -53,7 +55,7 @@ function requireAuth(req, res, next) {
 }
 
 // =====================================================
-// C3 - Chia se cong viec cho mot hoac nhieu nguoi
+// C3 - CHIA SE CONG VIEC CHO MOT HOAC NHIEU NGUOI
 // POST /api/tasks/:id/shares
 // Body: { "userIds": ["id1", "id2"] }
 // =====================================================
@@ -87,7 +89,8 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
 
     if (
       !userIds.every(
-        id => typeof id === 'string' &&
+        id =>
+          typeof id === 'string' &&
           mongoose.isValidObjectId(id)
       )
     ) {
@@ -100,7 +103,7 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
       ...new Set(userIds.map(id => id.toLowerCase()))
     ];
 
-    // Khong cho phep chia se cho chinh minh
+    // Khong cho phep chia se cho chinh nguoi tao
     if (uniqueIds.includes(req.userId.toLowerCase())) {
       return res.status(400).json({
         message: 'Khong can chia se cong viec cho nguoi tao'
@@ -119,7 +122,7 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
       });
     }
 
-    // Dam bao tat ca tai khoan deu ton tai
+    // Kiem tra tat ca tai khoan ton tai
     const users = await User.find({
       _id: { $in: uniqueIds }
     })
@@ -156,8 +159,6 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
           alreadyShared++;
         }
       } catch (error) {
-        // Hai yeu cau dong thoi co the cung tao
-        // ban ghi. Unique index ngan chia se trung.
         if (error.code === 11000) {
           alreadyShared++;
         } else {
@@ -166,9 +167,7 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
       }
     }
 
-    // Khong thay doi assigneeIds,
-    // primaryAssigneeId hoac assignedTo cua C1/C2.
-
+    // Khong thay doi du lieu giao viec cua C1, C2
     const shares = await TaskShare.find({
       taskId: task._id,
       userId: { $in: uniqueIds }
@@ -185,7 +184,6 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
       total: shares.length,
       shares
     });
-
   } catch (error) {
     console.error('Loi C3 chia se cong viec:', error.message);
 
@@ -202,7 +200,7 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
 });
 
 // =====================================================
-// C4 - Cap nhat quyen viewer / editor
+// C4 - CAP NHAT QUYEN VIEWER / EDITOR
 // PATCH /api/tasks/:id/shares/:userId/permission
 // Body: { "permission": "viewer" | "editor" }
 // =====================================================
@@ -233,7 +231,7 @@ router.patch('/:id/shares/:userId/permission', requireAuth, async (req, res) => 
       });
     }
 
-    // Chi nguoi tao cong viec moi duoc cap quyen.
+    // Chi nguoi tao moi duoc thay doi quyen
     const task = await Task.findOne({
       _id: taskId,
       createdBy: req.userId
@@ -245,7 +243,6 @@ router.patch('/:id/shares/:userId/permission', requireAuth, async (req, res) => 
       });
     }
 
-    // Chi cap nhat nguoi da duoc chia se.
     const share = await TaskShare.findOneAndUpdate(
       {
         taskId: task._id,
@@ -272,7 +269,6 @@ router.patch('/:id/shares/:userId/permission', requireAuth, async (req, res) => 
       userId: targetUserId,
       permission: share.permission
     });
-
   } catch (error) {
     console.error('Loi C4 cap nhat quyen:', error.message);
 
@@ -281,8 +277,9 @@ router.patch('/:id/shares/:userId/permission', requireAuth, async (req, res) => 
     });
   }
 });
+
 // =====================================================
-// C4 - Lay danh sach nguoi duoc chia se
+// C4 / C5 - LAY DANH SACH NGUOI DUOC CHIA SE
 // GET /api/tasks/:id/shares
 // =====================================================
 router.get('/:id/shares', requireAuth, async (req, res) => {
@@ -295,7 +292,7 @@ router.get('/:id/shares', requireAuth, async (req, res) => {
       });
     }
 
-    // Chi nguoi tao duoc xem danh sach quan ly quyen.
+    // Chi nguoi tao duoc xem danh sach quan ly quyen
     const task = await Task.findOne({
       _id: taskId,
       createdBy: req.userId
@@ -329,4 +326,64 @@ router.get('/:id/shares', requireAuth, async (req, res) => {
     });
   }
 });
+
+// =====================================================
+// C6 - THU HOI QUYEN CHIA SE CONG VIEC
+// DELETE /api/tasks/:id/shares/:userId
+// Chi nguoi tao cong viec duoc thu hoi quyen
+// =====================================================
+router.delete('/:id/shares/:userId', requireAuth, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+
+    // 1. Kiem tra ID cong viec va nguoi dung
+    if (
+      !mongoose.isValidObjectId(id) ||
+      !mongoose.isValidObjectId(userId)
+    ) {
+      return res.status(400).json({
+        message: 'ID cong viec hoac nguoi dung khong hop le'
+      });
+    }
+
+    // 2. Chi nguoi tao cong viec moi duoc thu hoi
+    const task = await Task.findOne({
+      _id: id,
+      createdBy: req.userId
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Khong tim thay cong viec hoac khong co quyen'
+      });
+    }
+
+    // 3. Tim va xoa ban ghi chia se
+    const removedShare = await TaskShare.findOneAndDelete({
+      taskId: task._id,
+      userId
+    });
+
+    if (!removedShare) {
+      return res.status(404).json({
+        message: 'Nguoi dung chua duoc chia se cong viec'
+      });
+    }
+
+    // 4. Tra ve thong bao thanh cong
+    return res.status(200).json({
+      message: 'Thu hoi quyen chia se thanh cong',
+      taskId: task._id,
+      removedUserId: userId,
+      previousPermission: removedShare.permission
+    });
+  } catch (error) {
+    console.error('Loi C6 thu hoi quyen:', error.message);
+
+    return res.status(500).json({
+      message: 'Khong the thu hoi quyen chia se'
+    });
+  }
+});
+
 module.exports = router;
