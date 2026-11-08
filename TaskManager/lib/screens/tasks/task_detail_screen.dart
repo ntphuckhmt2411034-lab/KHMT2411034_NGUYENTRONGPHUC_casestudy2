@@ -8,6 +8,7 @@ import 'task_edit_screen.dart';
 import '../assignment/assign_task_screen.dart';
 import '../sharing/share_task_screen.dart';
 import '../sharing/manage_share_permissions_screen.dart';
+import '../assignment/task_members_screen.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final String token;
@@ -934,6 +935,26 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                           // C2 - Hien thi nguoi phu trach chinh cho
                           // ca nguoi tao va nguoi duoc giao cong viec.
                           _primaryAssigneeSection(task),
+                          const SizedBox(height: 12),
+                          if (_canManage)
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _isBusy ? null : () async {
+                                  await Navigator.push<void>(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => TaskMembersScreen(
+                                        token: widget.token,
+                                        taskId: widget.taskId,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.groups_outlined),
+                                label: const Text('Xem danh sách thành viên'),
+                              ),
+                            ),
 
                           if (_canManage) ...[
                             const SizedBox(height: 12),

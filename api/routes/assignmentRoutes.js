@@ -55,6 +55,51 @@ function requireAuth(req, res, next) {
 // C1 - Giao cong viec cho mot hoac nhieu nguoi
 // POST /api/tasks/:id/assignees
 // =====================================================
+// C5 - Creator can view all assignees and the primary assignee.
+// GET /api/tasks/:id/assignees
+router.get('/:id/assignees', requireAuth, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    if (!mongoose.isValidObjectId(taskId)) {
+      return res.status(400).json({ message: 'ID cong viec khong hop le' });
+    }
+
+    // Only the creator may inspect the full member roster.
+    const task = await Task.findOne({ _id: taskId, createdBy: req.userId })
+      .select('assignedTo assigneeIds primaryAssigneeId')
+      .lean();
+    if (!task) {
+      return res.status(404).json({ message: 'Khong tim thay cong viec hoac khong co quyen' });
+    }
+
+    // Keep legacy Module B assignee, deduplicate by id.
+    const ids = [...new Set([
+      ...(task.assigneeIds || []).map(value => value.toString()),
+      ...(task.assignedTo ? [task.assignedTo.toString()] : []),
+    ])];
+
+    const assignees = await User.find({ _id: { $in: ids } })
+      .select('_id fullName email')
+      .lean();
+    const primaryId = task.primaryAssigneeId?.toString() || null;
+    assignees.sort((a, b) => {
+      if (a._id.toString() === primaryId) return -1;
+      if (b._id.toString() === primaryId) return 1;
+      return (a.fullName || '').localeCompare(b.fullName || '');
+    });
+
+    return res.status(200).json({
+      message: 'Lay danh sach nguoi duoc giao thanh cong',
+      taskId: task._id,
+      total: assignees.length,
+      primaryAssigneeId: primaryId,
+      assignees,
+    });
+  } catch (error) {
+    console.error('Loi C5 lay danh sach nguoi duoc giao:', error.message);
+    return res.status(500).json({ message: 'Khong the lay danh sach nguoi duoc giao' });
+  }
+});
 router.post('/:id/assignees', requireAuth, async (req, res) => {
   try {
     const taskId = req.params.id;
