@@ -223,7 +223,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
   bool _containsUser(dynamic values, String userId) {
     if (values is! List) return false;
 
-    return values.any((value) => _idOf(value) == userId);
+    return values.any(
+      (value) => _idOf(value)?.toLowerCase() == userId.toLowerCase(),
+    );
   }
 
   // C1/C2 - Ho tro ca assignedTo cu va danh sach assigneeIds moi.
@@ -401,35 +403,94 @@ class _TaskListScreenState extends State<TaskListScreen> {
   // B1 + B6 + B7 - PHAN LOAI, LOC VA SAP XEP
   // =====================================================
 
-  List<Map<String, dynamic>> get _visibleTasks {
+  // C7 - Phan loai theo vai tro; giu mot cong viec trong moi nhom phu hop.
+  List<Map<String, dynamic>> get _scopeTasks {
     final userId = _currentUserId;
+    if (_scope == 'all' || userId == null) return _tasks;
+
+    final normalizedId = userId.toLowerCase();
+    return _tasks.where((task) {
+      switch (_scope) {
+        case 'created':
+          return _idOf(task['createdBy'])?.toLowerCase() == normalizedId;
+        case 'assigned':
+          return _assigneeIdsOf(task)
+              .any((id) => id.toLowerCase() == normalizedId);
+        case 'shared':
+          final legacyShare = _containsUser(task['sharedWith'], userId);
+          final permission = task['sharePermission']?.toString();
+          return legacyShare ||
+              permission == 'viewer' ||
+              permission == 'editor';
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
+  // C7 - Tien do duoc tinh tren nhom dang chon, khong theo bo loc tim kiem.
+  Widget _buildProgressSummary() {
+    final tasks = _scopeTasks;
+    final total = tasks.length;
+    final pending = tasks
+        .where((task) => task['status'] == 'chua_thuc_hien')
+        .length;
+    final inProgress = tasks
+        .where((task) => task['status'] == 'dang_thuc_hien')
+        .length;
+    final completed = tasks
+        .where((task) => task['status'] == 'da_hoan_thanh')
+        .length;
+    final progress = total == 0 ? 0.0 : completed / total;
+    final label = switch (_scope) {
+      'created' => 'Tôi tạo',
+      'assigned' => 'Được giao',
+      'shared' => 'Được chia sẻ',
+      _ => 'Tất cả công việc',
+    };
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tiến độ - $label',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Đã hoàn thành $completed/$total công việc '
+              '(${(progress * 100).round()}%)',
+            ),
+            const SizedBox(height: 10),
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Chip(label: Text('Chưa thực hiện: $pending')),
+                Chip(label: Text('Đang thực hiện: $inProgress')),
+                Chip(label: Text('Hoàn thành: $completed')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> get _visibleTasks {
     final query = _searchQuery.trim().toLowerCase();
 
-    final filtered = _tasks.where((task) {
-      // B1 - Loc theo nhom cong viec.
-      if (_scope != 'all' && userId != null) {
-        bool matchesScope;
-
-        switch (_scope) {
-          case 'created':
-            matchesScope = _idOf(task['createdBy']) == userId;
-            break;
-
-          case 'assigned':
-            matchesScope = _assigneeIdsOf(task).contains(userId);
-            break;
-
-          case 'shared':
-            matchesScope = _containsUser(task['sharedWith'], userId) || (task['sharePermission'] != null && task['sharePermission'].toString().isNotEmpty);
-            break;
-
-          default:
-            matchesScope = true;
-        }
-
-        if (!matchesScope) return false;
-      }
-
+    final filtered = _scopeTasks.where((task) {
       // B6.1 - Tim theo ten cong viec.
       final title = task['title']?.toString().toLowerCase() ?? '';
 
@@ -967,13 +1028,19 @@ class _TaskListScreenState extends State<TaskListScreen> {
                   // B6 + B7 - Bo loc va sap xep.
                   _buildSearchAndFilters(),
 
+                  // C7 - Thong ke nam trong danh sach cuon,
+                  // tranh tran man hinh Android nho.
                   Expanded(
-                    child: visibleTasks.isEmpty
-                        ? Center(
-                            child: Padding(
+                    child: RefreshIndicator(
+                      onRefresh: _loadTasks,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(0, 4, 0, 16),
+                        children: [
+                          _buildProgressSummary(),
+                          if (visibleTasks.isEmpty)
+                            Padding(
                               padding: const EdgeInsets.all(24),
                               child: Column(
-                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
                                     _tasks.isEmpty
@@ -999,18 +1066,22 @@ class _TaskListScreenState extends State<TaskListScreen> {
                                   ],
                                 ],
                               ),
+                            )
+                          else
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Column(
+                                children: [
+                                  for (final task in visibleTasks)
+                                    _buildTaskCard(task),
+                                ],
+                              ),
                             ),
-                          )
-                        : RefreshIndicator(
-                            onRefresh: _loadTasks,
-                            child: ListView.builder(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: visibleTasks.length,
-                              itemBuilder: (context, index) {
-                                return _buildTaskCard(visibleTasks[index]);
-                              },
-                            ),
-                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
