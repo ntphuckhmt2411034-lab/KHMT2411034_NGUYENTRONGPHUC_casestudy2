@@ -76,7 +76,36 @@ async function sendShareInvitationEmail({ to, taskTitle, permission = 'viewer' }
   });
 }
 
+
+// D3 - Gui email khi han hoan thanh hoac thong tin quan trong thay doi.
+async function sendTaskUpdateEmail({ to, taskTitle, changedDetails }) {
+  if (typeof taskTitle !== 'string' || !taskTitle.trim()) {
+    throw new Error('Ten cong viec khong hop le');
+  }
+  if (!Array.isArray(changedDetails) || changedDetails.length === 0 ||
+      !changedDetails.every(detail => typeof detail === 'string' && detail.trim())) {
+    throw new Error('Danh sach thay doi khong hop le');
+  }
+  return sendTaskEmail({
+    to,
+    subject: 'TaskManager - Cap nhat thong tin quan trong cua cong viec',
+    text: [
+      'Xin chao,',
+      '',
+      `Cong viec: ${taskTitle}`,
+      '',
+      'Thong tin vua thay doi:',
+      ...changedDetails.map(detail => `- ${detail}`),
+      '',
+      'Vui long mo ung dung TaskManager de xem chi tiet.',
+      '',
+      'TaskManager'
+    ].join('\n')
+  });
+}
+
 module.exports = {
   sendAssignmentEmail,
-  sendShareInvitationEmail
+  sendShareInvitationEmail,
+  sendTaskUpdateEmail
 };

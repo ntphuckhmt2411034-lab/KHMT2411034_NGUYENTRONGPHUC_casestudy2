@@ -6,6 +6,8 @@ const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const TaskShare = require('../models/TaskShare');
 
+const { notifyImportantTaskUpdate } = require('../services/taskUpdateService'); // D3_TASK_CHANGE_HOOK
+
 const router = express.Router();
 
 // Xac thuc nguoi dung bang JWT
@@ -340,6 +342,14 @@ router.put('/:id', requireAuth, async (req, res) => {
       }
     }
 
+    const previousImportant = {
+      title: task.title,
+      description: task.description || '',
+      priority: task.priority,
+      dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      startDate: task.startDate ? task.startDate.toISOString() : null
+    };
+
     const body = req.body;
 
     if (
@@ -475,9 +485,21 @@ router.put('/:id', requireAuth, async (req, res) => {
 
     await task.save();
 
+    // D3: Sending email must not roll back a successfully saved task.
+    let d3 = { changed: [], recipients: 0, accepted: 0, failed: 0 };
+    try {
+      d3 = await notifyImportantTaskUpdate({
+        task, oldValues: previousImportant, actorId: req.userId
+      });
+    } catch (d3Error) {
+      console.error('D3 - Loi xu ly thong bao:', d3Error.message);
+      d3 = { changed: [], recipients: 0, accepted: 0, failed: 0, warning: 'notification_error' };
+    }
+
     return res.status(200).json({
       message: 'Cap nhat cong viec thanh cong',
-      task
+      task,
+      d3
     });
 
   } catch (error) {
@@ -684,12 +706,26 @@ router.patch('/:id/priority', requireAuth, async (req, res) => {
       }
     }
 
+    const oldPriority = task.priority;
     task.priority = body.priority;
     await task.save();
 
+    let d3 = { changed: [], recipients: 0, accepted: 0, failed: 0 };
+    if (oldPriority !== task.priority) {
+      try {
+        d3 = await notifyImportantTaskUpdate({
+          task, oldValues: { priority: oldPriority }, actorId: req.userId
+        });
+      } catch (d3Error) {
+        console.error('D3 - Loi thong bao thay doi uu tien:', d3Error.message);
+        d3 = { changed: ['priority'], recipients: 0, accepted: 0, failed: 0, warning: 'notification_error' };
+      }
+    }
+
     return res.status(200).json({
       message: 'Cap nhat do uu tien thanh cong',
-      task
+      task,
+      d3
     });
 
   } catch (error) {
