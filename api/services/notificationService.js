@@ -1,4 +1,3 @@
-
 const Notification = require('../models/Notification');
 
 async function createNotification({
@@ -32,7 +31,19 @@ async function createAssignmentNotification({ userId, task }) {
   });
 }
 
+// D2 - Tao thong bao cho nguoi vua duoc moi chia se.
+async function createShareNotification({ userId, task, permission = 'viewer' }) {
+  return createNotification({
+    userId,
+    taskId: task._id,
+    type: 'task_shared',
+    title: 'Ban duoc moi tham gia cong viec',
+    message: `Ban duoc chia se cong viec: ${task.title} (quyen ${permission})`
+  });
+}
+
 module.exports = {
   createNotification,
-  createAssignmentNotification
+  createAssignmentNotification,
+  createShareNotification
 };

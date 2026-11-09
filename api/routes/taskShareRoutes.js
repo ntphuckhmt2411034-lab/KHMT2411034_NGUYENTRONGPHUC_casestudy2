@@ -1,4 +1,3 @@
-
 const express = require('express');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
@@ -6,6 +5,9 @@ const jwt = require('jsonwebtoken');
 const Task = require('../models/Task');
 const User = require('../models/User');
 const TaskShare = require('../models/TaskShare');
+const EmailLog = require('../models/EmailLog');
+const { sendShareInvitationEmail } = require('../services/emailService');
+const { createShareNotification } = require('../services/notificationService');
 
 const router = express.Router();
 
@@ -55,7 +57,7 @@ function requireAuth(req, res, next) {
 }
 
 // =====================================================
-// C3 - CHIA SE CONG VIEC CHO MOT HOAC NHIEU NGUOI
+// C3 + D2 - CHIA SE CONG VIEC CHO MOT HOAC NHIEU NGUOI
 // POST /api/tasks/:id/shares
 // Body: { "userIds": ["id1", "id2"] }
 // =====================================================
@@ -137,6 +139,7 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
 
     let added = 0;
     let alreadyShared = 0;
+    const newSharedIds = new Set();
 
     for (const userId of uniqueIds) {
       try {
@@ -155,6 +158,7 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
 
         if (result.upsertedCount > 0) {
           added++;
+          newSharedIds.add(userId);
         } else {
           alreadyShared++;
         }
@@ -176,13 +180,93 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
       .select('taskId userId permission sharedBy createdAt')
       .lean();
 
+    // D2: Chi xu ly thong bao/email cho nhung user moi duoc chia se.
+    // Loi email khong duoc lam that bai nghiep vu C3 da luu vao MongoDB.
+    const newUsers = users.filter(user => newSharedIds.has(String(user._id)));
+    const emailResults = await Promise.allSettled(newUsers.map(async user => {
+      const recipientEmail = user.email;
+      const subject = 'TaskManager - Loi moi chia se cong viec';
+
+      try {
+        await createShareNotification({
+          userId: user._id,
+          task,
+          permission: 'viewer'
+        });
+      } catch (notificationError) {
+        console.error('D2 - Khong tao duoc Notification:', notificationError.message);
+      }
+
+      let emailLog = null;
+      try {
+        emailLog = await EmailLog.create({
+          taskId: task._id,
+          recipientEmail,
+          eventType: 'task_shared',
+          subject,
+          status: 'pending',
+          attempts: 1
+        });
+      } catch (logError) {
+        console.error('D2 - Khong tao duoc EmailLog:', logError.message);
+      }
+
+      try {
+        await sendShareInvitationEmail({
+          to: recipientEmail,
+          taskTitle: task.title,
+          permission: 'viewer'
+        });
+
+        if (emailLog) {
+          try {
+            emailLog.status = 'sent';
+            emailLog.sentAt = new Date();
+            emailLog.errorMessage = '';
+            await emailLog.save();
+          } catch (logError) {
+            console.error('D2 - Khong cap nhat EmailLog sent:', logError.message);
+          }
+        }
+        return { accepted: true };
+      } catch (emailError) {
+        console.error('D2 - Gui email that bai:', emailError.message);
+        if (emailLog) {
+          try {
+            emailLog.status = 'failed';
+            emailLog.errorMessage = String(emailError.message).slice(0, 500);
+            await emailLog.save();
+          } catch (logError) {
+            console.error('D2 - Khong cap nhat EmailLog failed:', logError.message);
+          }
+        }
+        return { accepted: false };
+      }
+    }));
+
+    const emailsAccepted = emailResults.filter(
+      result => result.status === 'fulfilled' && result.value.accepted
+    ).length;
+    const emailsFailed = newUsers.length - emailsAccepted;
+    console.log('D2 - Ket qua gui email:', {
+      taskId: String(task._id),
+      newShares: newUsers.length,
+      emailsAccepted,
+      emailsFailed
+    });
+
     return res.status(200).json({
       message: 'Chia se cong viec thanh cong',
       taskId: task._id,
       added,
       alreadyShared,
       total: shares.length,
-      shares
+      shares,
+      email: {
+        newShares: newUsers.length,
+        accepted: emailsAccepted,
+        failed: emailsFailed
+      }
     });
   } catch (error) {
     console.error('Loi C3 chia se cong viec:', error.message);
