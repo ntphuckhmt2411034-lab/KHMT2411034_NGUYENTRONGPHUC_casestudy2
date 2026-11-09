@@ -158,9 +158,57 @@ async function sendTaskCompletedEmail({ to, taskTitle }) {
   });
 }
 
+
+//
+// D5 - Gui email nhac cong viec truoc han hoan thanh.
+//
+async function sendTaskReminderEmail({
+  to,
+  taskTitle,
+  dueDate,
+  reminderHours = 24
+}) {
+  if (typeof taskTitle !== 'string' || !taskTitle.trim()) {
+    throw new Error('Ten cong viec khong hop le');
+  }
+
+  const due = new Date(dueDate);
+
+  if (Number.isNaN(due.getTime())) {
+    throw new Error('Han hoan thanh khong hop le');
+  }
+
+  if (!Number.isFinite(reminderHours) || reminderHours <= 0) {
+    throw new Error('So gio nhac khong hop le');
+  }
+
+  const dueText = due.toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour12: false
+  });
+
+  return sendTaskEmail({
+    to,
+    subject: 'TaskManager - Nhac viec sap den han',
+    text: [
+      'Xin chao,',
+      '',
+      `Cong viec: ${taskTitle}`,
+      `Han hoan thanh: ${dueText}`,
+      '',
+      `Day la thong bao nhac viec trong khoang ${reminderHours} gio truoc han.`,
+      '',
+      'Vui long kiem tra tien do va hoan thanh cong viec dung han.',
+      '',
+      'TaskManager'
+    ].join('\n')
+  });
+}
+
 module.exports = {
   sendAssignmentEmail,
   sendShareInvitationEmail,
   sendTaskUpdateEmail,
-  sendTaskCompletedEmail
+  sendTaskCompletedEmail,
+  sendTaskReminderEmail
 };

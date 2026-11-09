@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:convert';
 
@@ -8,10 +7,7 @@ import 'package:http/http.dart' as http;
 class TaskCreateScreen extends StatefulWidget {
   final String token;
 
-  const TaskCreateScreen({
-    super.key,
-    required this.token,
-  });
+  const TaskCreateScreen({super.key, required this.token});
 
   @override
   State<TaskCreateScreen> createState() => _TaskCreateScreenState();
@@ -39,44 +35,83 @@ class _TaskCreateScreenState extends State<TaskCreateScreen> {
     super.dispose();
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Chọn ngày';
+  // D5 - Hien thi ngay va gio theo dinh dang Viet Nam.
+  String _formatDateTime(DateTime? date) {
+    if (date == null) {
+      return 'Chưa thiết lập';
+    }
 
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year}';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year;
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+
+    return '$day/$month/$year $hour:$minute';
   }
 
-  String? _toApiDate(DateTime? date) {
-    if (date == null) return null;
+  // D5 - Gui thoi diem chinh xac ve Backend.
+  // UTC giup tranh sai lech mui gio giua Flutter va Node.js.
+  String? _toApiDateTime(DateTime? date) {
+    if (date == null) {
+      return null;
+    }
 
-    return '${date.year}-'
-        '${date.month.toString().padLeft(2, '0')}-'
-        '${date.day.toString().padLeft(2, '0')}';
+    return date.toUtc().toIso8601String();
   }
 
-  Future<void> _selectDate({required bool isStartDate}) async {
+  // D5 - Chon ngay truoc, sau do chon gio.
+  Future<void> _selectDateTime({required bool isStartDate}) async {
     if (_isSaving) return;
 
     final current = isStartDate ? _startDate : _dueDate;
+    final now = DateTime.now();
 
-    final selected = await showDatePicker(
+    final selectedDate = await showDatePicker(
       context: context,
-      initialDate: current ?? DateTime.now(),
+      initialDate: current ?? now,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
-      helpText: isStartDate
-          ? 'Chọn ngày bắt đầu'
-          : 'Chọn hạn hoàn thành',
+      helpText: isStartDate ? 'Chọn ngày bắt đầu' : 'Chọn hạn hoàn thành',
     );
 
-    if (!mounted || selected == null) return;
+    if (!mounted || selectedDate == null) {
+      return;
+    }
+
+    final initialTime = current != null
+        ? TimeOfDay.fromDateTime(current)
+        : TimeOfDay.fromDateTime(now);
+
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      helpText: isStartDate ? 'Chọn giờ bắt đầu' : 'Chọn giờ hoàn thành',
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
+    );
+
+    if (!mounted || selectedTime == null) {
+      return;
+    }
+
+    final selectedDateTime = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
 
     setState(() {
       if (isStartDate) {
-        _startDate = selected;
+        _startDate = selectedDateTime;
       } else {
-        _dueDate = selected;
+        _dueDate = selectedDateTime;
       }
     });
   }
@@ -93,9 +128,20 @@ class _TaskCreateScreenState extends State<TaskCreateScreen> {
         _dueDate!.isBefore(_startDate!)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Hạn hoàn thành không được trước ngày bắt đầu.',
-          ),
+          content: Text('Hạn hoàn thành không được trước ngày bắt đầu.'),
+        ),
+      );
+      return;
+    }
+
+    // D5 - Khong cho tao cong viec chua hoan thanh
+    // voi han hoan thanh da qua.
+    if (_dueDate != null &&
+        _status != 'da_hoan_thanh' &&
+        !_dueDate!.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hạn hoàn thành phải lớn hơn thời gian hiện tại.'),
         ),
       );
       return;
@@ -111,19 +157,19 @@ class _TaskCreateScreenState extends State<TaskCreateScreen> {
         'description': _descriptionController.text.trim(),
         'status': _status,
         'priority': _priority,
-        'startDate': _toApiDate(_startDate),
-        'dueDate': _toApiDate(_dueDate),
+        'startDate': _toApiDateTime(_startDate),
+        'dueDate': _toApiDateTime(_dueDate),
       };
 
       final response = await http
           .post(
-        Uri.parse(apiUrl),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(body),
-      )
+            Uri.parse(apiUrl),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(body),
+          )
           .timeout(const Duration(seconds: 20));
 
       if (!mounted) return;
@@ -149,23 +195,18 @@ class _TaskCreateScreenState extends State<TaskCreateScreen> {
         message = 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.';
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } on TimeoutException {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kết nối quá thời gian.'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Kết nối quá thời gian.')));
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể kết nối backend.'),
-          ),
+          const SnackBar(content: Text('Không thể kết nối backend.')),
         );
       }
     } finally {
@@ -177,26 +218,35 @@ class _TaskCreateScreenState extends State<TaskCreateScreen> {
     }
   }
 
+  // D5 - Nut chon ngay va gio.
   Widget _dateField({
     required String label,
     required DateTime? value,
     required bool isStartDate,
   }) {
-    return OutlinedButton.icon(
-      onPressed: _isSaving
-          ? null
-          : () => _selectDate(isStartDate: isStartDate),
-      icon: const Icon(Icons.calendar_month_outlined),
-      label: Text('$label: ${_formatDate(value)}'),
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _isSaving
+            ? null
+            : () => _selectDateTime(isStartDate: isStartDate),
+        icon: const Icon(Icons.event),
+        label: Text(
+          '$label: ${_formatDateTime(value)}',
+          overflow: TextOverflow.ellipsis,
+        ),
+        style: OutlinedButton.styleFrom(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tạo công việc mới'),
-      ),
+      appBar: AppBar(title: const Text('Tạo công việc mới')),
       body: SafeArea(
         child: Form(
           key: _formKey,
@@ -265,10 +315,10 @@ class _TaskCreateScreenState extends State<TaskCreateScreen> {
                 onChanged: _isSaving
                     ? null
                     : (value) {
-                  if (value != null) {
-                    setState(() => _status = value);
-                  }
-                },
+                        if (value != null) {
+                          setState(() => _status = value);
+                        }
+                      },
               ),
 
               const SizedBox(height: 16),
@@ -280,35 +330,45 @@ class _TaskCreateScreenState extends State<TaskCreateScreen> {
                   border: OutlineInputBorder(),
                 ),
                 items: const [
-                  DropdownMenuItem(
-                    value: 'thap',
-                    child: Text('Thấp'),
-                  ),
+                  DropdownMenuItem(value: 'thap', child: Text('Thấp')),
                   DropdownMenuItem(
                     value: 'trung_binh',
                     child: Text('Trung bình'),
                   ),
-                  DropdownMenuItem(
-                    value: 'cao',
-                    child: Text('Cao'),
-                  ),
+                  DropdownMenuItem(value: 'cao', child: Text('Cao')),
                 ],
                 onChanged: _isSaving
                     ? null
                     : (value) {
-                  if (value != null) {
-                    setState(() => _priority = value);
-                  }
-                },
+                        if (value != null) {
+                          setState(() => _priority = value);
+                        }
+                      },
               ),
 
               const SizedBox(height: 20),
+
+              Text(
+                'Thời gian công việc',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+
+              const SizedBox(height: 8),
+
+              Text(
+                'Chọn ngày và giờ để hệ thống nhắc việc chính xác.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+
+              const SizedBox(height: 12),
 
               _dateField(
                 label: 'Ngày bắt đầu',
                 value: _startDate,
                 isStartDate: true,
               ),
+
+              const SizedBox(height: 10),
 
               _dateField(
                 label: 'Hạn hoàn thành',
@@ -319,16 +379,17 @@ class _TaskCreateScreenState extends State<TaskCreateScreen> {
               if (_startDate != null || _dueDate != null)
                 Align(
                   alignment: Alignment.centerRight,
-                  child: TextButton(
+                  child: TextButton.icon(
                     onPressed: _isSaving
                         ? null
                         : () {
-                      setState(() {
-                        _startDate = null;
-                        _dueDate = null;
-                      });
-                    },
-                    child: const Text('Xóa ngày đã chọn'),
+                            setState(() {
+                              _startDate = null;
+                              _dueDate = null;
+                            });
+                          },
+                    icon: const Icon(Icons.clear),
+                    label: const Text('Xóa thời gian đã chọn'),
                   ),
                 ),
 
@@ -338,16 +399,12 @@ class _TaskCreateScreenState extends State<TaskCreateScreen> {
                 onPressed: _isSaving ? null : _createTask,
                 icon: _isSaving
                     ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                  ),
-                )
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Icon(Icons.add_task),
-                label: Text(
-                  _isSaving ? 'Đang tạo...' : 'Tạo công việc',
-                ),
+                label: Text(_isSaving ? 'Đang tạo...' : 'Tạo công việc'),
               ),
             ],
           ),

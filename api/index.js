@@ -13,6 +13,11 @@ const assignmentRoutes = require('./routes/assignmentRoutes');
 // C3 - API chia se cong viec
 const taskShareRoutes = require('./routes/taskShareRoutes');
 
+// D5 - Tu dong nhac han cong viec
+const {
+  sweepTaskReminders
+} = require('./services/taskReminderService');
+
 const app = express();
 
 app.use(express.json());
@@ -34,13 +39,28 @@ app.use('/api/tasks', taskRoutes);
 // Module C1 - Tim kiem nguoi dung
 app.use('/api/users', userRoutes);
 
-// Module C1, C2 - Giao viec va chi dinh nguoi phu trach chinh
+// Module C1, C2 - Giao viec
 app.use('/api/tasks', assignmentRoutes);
 
-// Module C3 - Chia se cong viec cho nhieu nguoi
+// Module C3 - Chia se cong viec
 app.use('/api/tasks', taskShareRoutes);
 
 const PORT = process.env.PORT || 5000;
+
+// D5 - Kiem tra nhac viec moi 5 phut
+const REMINDER_INTERVAL_MS = 5 * 60 * 1000;
+
+// D5 - Chay kiem tra va xu ly loi
+async function runReminderSweep() {
+  try {
+    await sweepTaskReminders();
+  } catch (error) {
+    console.error(
+      'D5 - Loi kiem tra nhac han:',
+      error.message
+    );
+  }
+}
 
 async function startServer() {
   try {
@@ -50,16 +70,34 @@ async function startServer() {
 
     await mongoose.connect(process.env.MONGODB_URI);
 
+    // D5 - Tao index MongoDB de chong nhac trung
+    await mongoose.model('TaskReminder').init();
+
     console.log('Kết nối MongoDB thành công!');
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+
+      // D5 - Quet lan dau khi khoi dong Backend
+      runReminderSweep();
+
+      // D5 - Sau do quet dinh ky moi 5 phut
+      setInterval(
+        runReminderSweep,
+        REMINDER_INTERVAL_MS
+      );
+
+      console.log(
+        'D5 - Scheduler dang hoat dong, kiem tra moi 5 phut'
+      );
     });
+
   } catch (error) {
     console.error(
       'Không thể khởi động backend:',
       error.message
     );
+
     process.exit(1);
   }
 }
