@@ -1,10 +1,12 @@
-
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 
 const Task = require('../models/Task');
 const User = require('../models/User');
+const { sendAssignmentEmail } = require('../services/emailService');
+const EmailLog = require('../models/EmailLog');
+const { createAssignmentNotification } = require('../services/notificationService');
 
 const router = express.Router();
 
@@ -133,7 +135,7 @@ router.get('/:id/assignees', requireAuth, async (req, res) => {
 });
 
 // =====================================================
-// C1 - GIAO CONG VIEC CHO NHIEU NGUOI
+// C1 + D1 - GIAO CONG VIEC VA GUI EMAIL
 // POST /api/tasks/:id/assignees
 // Body: { "assigneeIds": ["userId1", "userId2"] }
 // =====================================================
@@ -228,14 +230,114 @@ router.post('/:id/assignees', requireAuth, async (req, res) => {
       );
     }
 
+    // D1 - Xac dinh nguoi MOI duoc giao viec
+    const existingIdSet = new Set(existingIds);
+
+    const newAssignees = users.filter(user =>
+      !existingIdSet.has(
+        user._id.toString().toLowerCase()
+      )
+    );
+
     const mergedIds = [
       ...new Set([...existingIds, ...uniqueIds])
     ];
 
     task.assigneeIds = mergedIds;
 
+    // Luu vao MongoDB truoc khi gui email
     await task.save();
 
+    // D1 - Tao thong bao va luu lich su email cho nguoi moi duoc giao.
+    // Loi thong bao/email khong duoc lam that bai viec giao cong viec.
+    let emailsAccepted = 0;
+    let emailsFailed = 0;
+
+    if (newAssignees.length > 0) {
+      const emailResults = await Promise.allSettled(
+        newAssignees.map(async user => {
+          try {
+            await createAssignmentNotification({
+              userId: user._id,
+              task
+            });
+          } catch (notificationError) {
+            console.error(
+              'D1 - Khong luu duoc notification:',
+              notificationError.message
+            );
+          }
+
+          let emailLog = null;
+          try {
+            emailLog = await EmailLog.create({
+              taskId: task._id,
+              recipientEmail: user.email,
+              eventType: 'task_assigned',
+              subject: 'TaskManager - Ban duoc giao cong viec moi',
+              status: 'pending',
+              attempts: 1
+            });
+          } catch (logError) {
+            console.error('D1 - Khong tao duoc EmailLog:', logError.message);
+          }
+
+          try {
+            const result = await sendAssignmentEmail({
+              to: user.email,
+              taskTitle: task.title
+            });
+
+            // 'sent' o day la Brevo DA TIEP NHAN, khong phai delivered.
+            if (emailLog) {
+              try {
+                emailLog.status = 'sent';
+                emailLog.sentAt = new Date();
+                emailLog.errorMessage = '';
+                await emailLog.save();
+              } catch (logError) {
+                console.error('D1 - Khong cap nhat EmailLog sent:', logError.message);
+              }
+            }
+            return result;
+          } catch (sendError) {
+            if (emailLog) {
+              try {
+                emailLog.status = 'failed';
+                emailLog.errorMessage = String(
+                  sendError.message || 'Gui email that bai'
+                ).slice(0, 500);
+                await emailLog.save();
+              } catch (logError) {
+                console.error('D1 - Khong cap nhat EmailLog failed:', logError.message);
+              }
+            }
+            throw sendError;
+          }
+        })
+      );
+
+      emailResults.forEach(result => {
+        if (result.status === 'fulfilled') {
+          emailsAccepted += 1;
+        } else {
+          emailsFailed += 1;
+          console.error(
+            'D1 - Gui email that bai:',
+            result.reason?.message || 'Unknown error'
+          );
+        }
+      });
+
+      console.log('D1 - Ket qua gui email:', {
+        taskId: task._id.toString(),
+        newAssignees: newAssignees.length,
+        emailsAccepted,
+        emailsFailed
+      });
+    }
+
+    // Lay danh sach thanh vien sau khi giao viec
     const assignees = await User.find({
       _id: { $in: mergedIds }
     })
@@ -246,7 +348,12 @@ router.post('/:id/assignees', requireAuth, async (req, res) => {
       message: 'Giao cong viec thanh cong',
       taskId: task._id,
       total: assignees.length,
-      assignees
+      assignees,
+      email: {
+        newAssignees: newAssignees.length,
+        accepted: emailsAccepted,
+        failed: emailsFailed
+      }
     });
   } catch (error) {
     console.error('Loi giao cong viec:', error.message);
