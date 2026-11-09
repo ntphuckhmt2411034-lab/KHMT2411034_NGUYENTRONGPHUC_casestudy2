@@ -6,7 +6,15 @@ const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const TaskShare = require('../models/TaskShare');
 
-const { notifyImportantTaskUpdate } = require('../services/taskUpdateService'); // D3_TASK_CHANGE_HOOK
+// D3 - Thong bao khi thong tin quan trong thay doi.
+const {
+  notifyImportantTaskUpdate
+} = require('../services/taskUpdateService');
+
+// D4 - Thong bao khi cong viec hoan thanh.
+const {
+  notifyTaskCompleted
+} = require('../services/taskCompletionService');
 
 const router = express.Router();
 
@@ -50,6 +58,55 @@ function requireAuth(req, res, next) {
     return res.status(401).json({
       message: 'Token khong hop le hoac het han'
     });
+  }
+}
+
+// =====================================================
+// D4 - Ham xu ly gui email khi cong viec hoan thanh
+// Dung chung cho PUT va PATCH status.
+// =====================================================
+async function processTaskCompletion({
+  task,
+  previousStatus,
+  actorId
+}) {
+  const d4 = {
+    triggered: false,
+    recipients: 0,
+    accepted: 0,
+    failed: 0
+  };
+
+  // Chi gui khi trang thai vua chuyen sang hoan thanh.
+  if (
+    previousStatus === 'da_hoan_thanh' ||
+    task.status !== 'da_hoan_thanh'
+  ) {
+    console.log('D4 - Khong co chuyen trang thai sang hoan thanh');
+    return d4;
+  }
+
+  try {
+    const result = await notifyTaskCompleted({
+      task,
+      actorId
+    });
+
+    return {
+      ...result,
+      triggered: true
+    };
+  } catch (error) {
+    console.error(
+      'D4 - Loi xu ly thong bao hoan thanh:',
+      error.message
+    );
+
+    return {
+      ...d4,
+      triggered: true,
+      warning: 'notification_error'
+    };
   }
 }
 
@@ -134,7 +191,6 @@ router.get('/:id', requireAuth, async (req, res) => {
       .select('permission')
       .lean();
 
-    // Neu khong co chia se C3, chi cho phep cac quyen cu
     const accessConditions = {
       _id: taskId
     };
@@ -304,7 +360,7 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 /**
- * B2.3 - Chinh sua cong viec
+ * B2.3 + D3 + D4 - Chinh sua cong viec
  * PUT /api/tasks/:id
  */
 router.put('/:id', requireAuth, async (req, res) => {
@@ -317,7 +373,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       });
     }
 
-    // C4: Nguoi tao hoac nguoi duoc chia se quyen editor duoc sua.
+    // C4: Nguoi tao hoac editor duoc sua.
     const task = await Task.findById(taskId);
 
     if (!task) {
@@ -342,13 +398,21 @@ router.put('/:id', requireAuth, async (req, res) => {
       }
     }
 
+    // D3 - Luu cac gia tri quan trong truoc khi sua.
     const previousImportant = {
       title: task.title,
       description: task.description || '',
       priority: task.priority,
-      dueDate: task.dueDate ? task.dueDate.toISOString() : null,
-      startDate: task.startDate ? task.startDate.toISOString() : null
+      dueDate: task.dueDate
+        ? task.dueDate.toISOString()
+        : null,
+      startDate: task.startDate
+        ? task.startDate.toISOString()
+        : null
     };
+
+    // D4 - Luu trang thai cu truoc khi cap nhat.
+    const previousStatus = task.status;
 
     const body = req.body;
 
@@ -483,23 +547,54 @@ router.put('/:id', requireAuth, async (req, res) => {
       });
     }
 
+    // Luu cong viec truoc khi gui thong bao.
     await task.save();
 
-    // D3: Sending email must not roll back a successfully saved task.
-    let d3 = { changed: [], recipients: 0, accepted: 0, failed: 0 };
+    // =================================================
+    // D3 - Thong bao khi thong tin quan trong thay doi
+    // =================================================
+    let d3 = {
+      changed: [],
+      recipients: 0,
+      accepted: 0,
+      failed: 0
+    };
+
     try {
       d3 = await notifyImportantTaskUpdate({
-        task, oldValues: previousImportant, actorId: req.userId
+        task,
+        oldValues: previousImportant,
+        actorId: req.userId
       });
     } catch (d3Error) {
-      console.error('D3 - Loi xu ly thong bao:', d3Error.message);
-      d3 = { changed: [], recipients: 0, accepted: 0, failed: 0, warning: 'notification_error' };
+      console.error(
+        'D3 - Loi xu ly thong bao:',
+        d3Error.message
+      );
+
+      d3 = {
+        changed: [],
+        recipients: 0,
+        accepted: 0,
+        failed: 0,
+        warning: 'notification_error'
+      };
     }
+
+    // =================================================
+    // D4 - Thong bao khi cong viec chuyen sang hoan thanh
+    // =================================================
+    const d4 = await processTaskCompletion({
+      task,
+      previousStatus,
+      actorId: req.userId
+    });
 
     return res.status(200).json({
       message: 'Cap nhat cong viec thanh cong',
       task,
-      d3
+      d3,
+      d4
     });
 
   } catch (error) {
@@ -557,7 +652,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 /**
- * B3 - Cap nhat trang thai cong viec
+ * B3 + D4 - Cap nhat trang thai cong viec
  * PATCH /api/tasks/:id/status
  */
 router.patch('/:id/status', requireAuth, async (req, res) => {
@@ -622,12 +717,23 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
       }
     }
 
+    // D4 - Ghi nho trang thai truoc khi cap nhat.
+    const previousStatus = task.status;
+
     task.status = body.status;
     await task.save();
 
+    // D4 - Gui thong bao neu vua hoan thanh.
+    const d4 = await processTaskCompletion({
+      task,
+      previousStatus,
+      actorId: req.userId
+    });
+
     return res.status(200).json({
       message: 'Cap nhat trang thai thanh cong',
-      task
+      task,
+      d4
     });
 
   } catch (error) {
@@ -707,18 +813,40 @@ router.patch('/:id/priority', requireAuth, async (req, res) => {
     }
 
     const oldPriority = task.priority;
+
     task.priority = body.priority;
     await task.save();
 
-    let d3 = { changed: [], recipients: 0, accepted: 0, failed: 0 };
+    // D3 - Thong bao khi do uu tien thay doi.
+    let d3 = {
+      changed: [],
+      recipients: 0,
+      accepted: 0,
+      failed: 0
+    };
+
     if (oldPriority !== task.priority) {
       try {
         d3 = await notifyImportantTaskUpdate({
-          task, oldValues: { priority: oldPriority }, actorId: req.userId
+          task,
+          oldValues: {
+            priority: oldPriority
+          },
+          actorId: req.userId
         });
       } catch (d3Error) {
-        console.error('D3 - Loi thong bao thay doi uu tien:', d3Error.message);
-        d3 = { changed: ['priority'], recipients: 0, accepted: 0, failed: 0, warning: 'notification_error' };
+        console.error(
+          'D3 - Loi thong bao thay doi uu tien:',
+          d3Error.message
+        );
+
+        d3 = {
+          changed: ['priority'],
+          recipients: 0,
+          accepted: 0,
+          failed: 0,
+          warning: 'notification_error'
+        };
       }
     }
 
@@ -729,7 +857,10 @@ router.patch('/:id/priority', requireAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Loi cap nhat do uu tien:', error.message);
+    console.error(
+      'Loi cap nhat do uu tien:',
+      error.message
+    );
 
     if (error.name === 'ValidationError') {
       return res.status(400).json({
