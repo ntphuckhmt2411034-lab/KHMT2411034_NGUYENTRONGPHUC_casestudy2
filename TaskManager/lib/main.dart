@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import 'screens/profile/change_password_screen.dart';
 import 'screens/tasks/task_list_screen.dart';
+import 'screens/notifications/notification_screen.dart';
 
 void main() {
   runApp(const TaskManagerApp());
@@ -609,11 +610,77 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _loading = true;
   String? _dashboardError;
   List<Map<String, dynamic>> _tasks = [];
+  int _unreadNotifications = 0;
 
   @override
   void initState() {
     super.initState();
     _loadDashboard();
+    _loadUnreadNotifications();
+  }
+
+  // D7 - Lay so thong bao chua doc, khong lam gian doan Dashboard.
+  Future<void> _loadUnreadNotifications() async {
+    final token = AuthSession.token;
+    if (token == null || token.isEmpty) return;
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('http://10.0.2.2:5000/api/notifications/unread-count'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (!mounted ||
+          response.statusCode != 200 ||
+          AuthSession.token != token) {
+        return;
+      }
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (data is Map && data['unreadCount'] is int) {
+        setState(() {
+          _unreadNotifications = data['unreadCount'] as int;
+        });
+      }
+    } catch (_) {
+      // Loi API thong bao khong anh huong cac chuc nang cu.
+    }
+  }
+
+  // D7 - Mo danh sach thong bao va cap nhat badge khi quay lai.
+  Future<void> _openNotifications() async {
+    final token = AuthSession.token;
+    if (token == null || token.isEmpty) {
+      showAppMessage(
+        context,
+        'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+      );
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => NotificationScreen(token: token)),
+    );
+
+    if (!mounted) return;
+    await _loadUnreadNotifications();
+    if (mounted) await _loadDashboard();
+  }
+
+  Widget _notificationButton() {
+    return IconButton(
+      tooltip: 'Thông báo ($_unreadNotifications chưa đọc)',
+      onPressed: _openNotifications,
+      icon: Badge(
+        isLabelVisible: _unreadNotifications > 0,
+        label: Text(
+          _unreadNotifications > 99 ? '99+' : '$_unreadNotifications',
+        ),
+        child: const Icon(Icons.notifications_outlined),
+      ),
+    );
   }
 
   void _updateWelcome(String fullName, String email) {
@@ -1158,9 +1225,15 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.4),
         ),
         actions: [
+          _notificationButton(),
           IconButton(
             tooltip: 'Làm mới tổng quan',
-            onPressed: _loading ? null : _loadDashboard,
+            onPressed: _loading
+                ? null
+                : () async {
+                    await _loadDashboard();
+                    await _loadUnreadNotifications();
+                  },
             icon: const Icon(Icons.refresh),
           ),
           IconButton(

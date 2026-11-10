@@ -1,4 +1,4 @@
-﻿
+
 require('dotenv').config();
 
 const express = require('express');
@@ -15,6 +15,7 @@ const taskShareRoutes = require('./routes/taskShareRoutes');
 
 // D6 - API xem lich su gui email
 const emailLogRoutes = require('./routes/emailLogRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 // D5 - Tu dong nhac han cong viec
 const {
@@ -50,6 +51,8 @@ app.use('/api/tasks', taskShareRoutes);
 
 // D6 - Lich su email cua cong viec
 app.use('/api/tasks', emailLogRoutes);
+
+app.use('/api/notifications', notificationRoutes);
 
 const PORT = process.env.PORT || 5000;
 
