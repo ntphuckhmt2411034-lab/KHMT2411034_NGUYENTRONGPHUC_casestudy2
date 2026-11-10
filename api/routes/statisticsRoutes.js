@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
@@ -110,6 +110,56 @@ router.get('/status', requireAuth, async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Khong the thong ke cong viec'
+    });
+  }
+});
+
+// =====================================================
+// E2 - Thong ke cong viec duoc giao va phu trach
+// GET /api/statistics/assignments
+// =====================================================
+router.get('/assignments', requireAuth, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Moi query chi dem task cua user hien tai.
+    // $or giup tranh dem trung trong nhom duoc giao.
+    const [
+      assignedCount,
+      primaryCount,
+      createdCount
+    ] = await Promise.all([
+      Task.countDocuments({
+        $or: [
+          { assignedTo: userId },
+          { assigneeIds: userId }
+        ]
+      }),
+
+      Task.countDocuments({
+        primaryAssigneeId: userId
+      }),
+
+      Task.countDocuments({
+        createdBy: userId
+      })
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      assignedCount,
+      primaryCount,
+      createdCount
+    });
+  } catch (error) {
+    console.error(
+      'E2 - Loi thong ke giao viec:',
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: 'Khong the thong ke giao viec'
     });
   }
 });
