@@ -122,8 +122,6 @@ router.get('/assignments', requireAuth, async (req, res) => {
   try {
     const userId = req.userId;
 
-    // Moi query chi dem task cua user hien tai.
-    // $or giup tranh dem trung trong nhom duoc giao.
     const [
       assignedCount,
       primaryCount,
@@ -160,6 +158,72 @@ router.get('/assignments', requireAuth, async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Khong the thong ke giao viec'
+    });
+  }
+});
+
+// =====================================================
+// E3 - Thong ke cong viec sap den han va qua han
+// GET /api/statistics/deadlines
+// =====================================================
+router.get('/deadlines', requireAuth, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const shares = await TaskShare.find({
+      userId
+    })
+      .select('taskId')
+      .lean();
+
+    const sharedTaskIds = shares.map(share => share.taskId);
+
+    const accessFilter = {
+      $or: [
+        { createdBy: userId },
+        { assignedTo: userId },
+        { assigneeIds: userId },
+        { sharedWith: userId },
+        { _id: { $in: sharedTaskIds } }
+      ]
+    };
+
+    const now = new Date();
+    const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    // Qua han: dueDate < now, chua hoan thanh, dueDate khac null
+    const overdueQuery = {
+      ...accessFilter,
+      dueDate: { $ne: null, $lt: now },
+      status: { $ne: 'da_hoan_thanh' }
+    };
+
+    // Sap den han trong vong 24h: now <= dueDate <= next24Hours, chua hoan thanh
+    const dueSoonQuery = {
+      ...accessFilter,
+      dueDate: { $ne: null, $gte: now, $lte: next24Hours },
+      status: { $ne: 'da_hoan_thanh' }
+    };
+
+    const [overdueCount, dueSoonCount] = await Promise.all([
+      Task.countDocuments(overdueQuery),
+      Task.countDocuments(dueSoonQuery)
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      overdueCount,
+      dueSoonCount
+    });
+  } catch (error) {
+    console.error(
+      'E3 - Loi thong ke thoi han:',
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: 'Khong the thong ke thoi han cong viec'
     });
   }
 });
