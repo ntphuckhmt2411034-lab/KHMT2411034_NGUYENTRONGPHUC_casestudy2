@@ -1,7 +1,56 @@
 
+'use strict';
+
 const nodemailer = require('nodemailer');
 
-// Gui email qua Mailtrap SMTP. Dung chung cho D1, D2, D3 va D4.
+// D3 fix: gioi han toc do gui email cho Mailtrap SMTP.
+// Moi email duoc xu ly lan luot trong mot tien trinh Node.js.
+const EMAIL_INTERVAL_MS = 3000;
+const RATE_LIMIT_RETRY_DELAY_MS = 6000;
+const MAX_RATE_LIMIT_ATTEMPTS = 3;
+
+let emailQueue = Promise.resolve();
+let lastSendStartedAt = 0;
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRateLimitError(error) {
+  const message = String(error && error.message || error || '');
+
+  return (
+    /too many emails per second/i.test(message) ||
+    /rate.limit/i.test(message) ||
+    /too many requests/i.test(message) ||
+    (/550\s+5\.7\.0/.test(message) &&
+      /too many/i.test(message))
+  );
+}
+
+function queueEmail(operation) {
+  const job = emailQueue.then(operation);
+
+  // Neu mot email loi, hang doi van tiep tuc gui email sau.
+  emailQueue = job.then(
+    () => undefined,
+    () => undefined
+  );
+
+  return job;
+}
+
+async function waitForSendSlot() {
+  const elapsed = Date.now() - lastSendStartedAt;
+  const remaining = EMAIL_INTERVAL_MS - elapsed;
+
+  if (remaining > 0) {
+    await sleep(remaining);
+  }
+
+  lastSendStartedAt = Date.now();
+}
+
 async function sendTaskEmail({ to, subject, text }) {
   const host = process.env.MAILTRAP_HOST;
   const port = Number(process.env.MAILTRAP_PORT || 2525);
@@ -19,32 +68,82 @@ async function sendTaskEmail({ to, subject, text }) {
     throw new Error('Email nguoi nhan khong hop le');
   }
 
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000
-  });
-
-  const result = await transporter.sendMail({
-    from: process.env.MAILTRAP_FROM || 'taskmanager@example.com',
-    to,
-    subject,
-    text
-  });
-
-  // Khong danh dau sent neu SMTP khong chap nhan nguoi nhan.
-  if (
-    !Array.isArray(result.accepted) ||
-    result.accepted.length === 0
-  ) {
-    throw new Error('SMTP khong chap nhan nguoi nhan email');
+  if (typeof subject !== 'string' || !subject.trim()) {
+    throw new Error('Tieu de email khong hop le');
   }
 
-  return result;
+  if (typeof text !== 'string' || !text.trim()) {
+    throw new Error('Noi dung email khong hop le');
+  }
+
+  return queueEmail(async () => {
+    for (
+      let attempt = 1;
+      attempt <= MAX_RATE_LIMIT_ATTEMPTS;
+      attempt++
+    ) {
+      await waitForSendSlot();
+
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass },
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000
+      });
+
+      try {
+        const result = await transporter.sendMail({
+          from:
+            process.env.MAILTRAP_FROM ||
+            'taskmanager@example.com',
+          to,
+          subject,
+          text
+        });
+
+        // Chi xem la thanh cong neu SMTP chap nhan email.
+        if (
+          !Array.isArray(result.accepted) ||
+          result.accepted.length === 0
+        ) {
+          throw new Error(
+            'SMTP khong chap nhan nguoi nhan email'
+          );
+        }
+
+        console.log(
+          `[EMAIL] Gui thanh cong toi ${to} ` +
+          `(lan ${attempt})`
+        );
+
+        return result;
+      } catch (error) {
+        if (
+          !isRateLimitError(error) ||
+          attempt >= MAX_RATE_LIMIT_ATTEMPTS
+        ) {
+          console.error(
+            `[EMAIL] Gui that bai toi ${to}:`,
+            error.message
+          );
+
+          throw error;
+        }
+
+        console.warn(
+          `[EMAIL] Mailtrap gioi han toc do. ` +
+          `Thu lai ${attempt + 1}/${MAX_RATE_LIMIT_ATTEMPTS}.`
+        );
+
+        await sleep(RATE_LIMIT_RETRY_DELAY_MS);
+      } finally {
+        transporter.close();
+      }
+    }
+  });
 }
 
 // D1 - Gui email khi giao cong viec moi.
@@ -107,7 +206,8 @@ async function sendTaskUpdateEmail({
     !Array.isArray(changedDetails) ||
     changedDetails.length === 0 ||
     !changedDetails.every(
-      detail => typeof detail === 'string' && detail.trim()
+      detail =>
+        typeof detail === 'string' && detail.trim()
     )
   ) {
     throw new Error('Danh sach thay doi khong hop le');
@@ -150,7 +250,6 @@ async function sendTaskCompletedEmail({ to, taskTitle }) {
       `Cong viec "${taskTitle}" da duoc danh dau hoan thanh.`,
       '',
       'Trang thai hien tai: Da hoan thanh.',
-      '',
       'Vui long mo ung dung TaskManager de xem chi tiet.',
       '',
       'TaskManager'
@@ -158,17 +257,17 @@ async function sendTaskCompletedEmail({ to, taskTitle }) {
   });
 }
 
-
-//
 // D5 - Gui email nhac cong viec truoc han hoan thanh.
-//
 async function sendTaskReminderEmail({
   to,
   taskTitle,
   dueDate,
   reminderHours = 24
 }) {
-  if (typeof taskTitle !== 'string' || !taskTitle.trim()) {
+  if (
+    typeof taskTitle !== 'string' ||
+    !taskTitle.trim()
+  ) {
     throw new Error('Ten cong viec khong hop le');
   }
 
@@ -178,7 +277,10 @@ async function sendTaskReminderEmail({
     throw new Error('Han hoan thanh khong hop le');
   }
 
-  if (!Number.isFinite(reminderHours) || reminderHours <= 0) {
+  if (
+    !Number.isFinite(reminderHours) ||
+    reminderHours <= 0
+  ) {
     throw new Error('So gio nhac khong hop le');
   }
 
