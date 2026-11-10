@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'task_edit_screen.dart';
+import 'task_email_history_screen.dart';
 import '../assignment/assign_task_screen.dart';
 import '../sharing/share_task_screen.dart';
 import '../sharing/manage_share_permissions_screen.dart';
@@ -123,9 +124,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     try {
       final response = await http
           .get(
-            Uri.parse('$apiUrl/${widget.taskId}'),
-            headers: {'Authorization': 'Bearer ${widget.token}'},
-          )
+        Uri.parse('$apiUrl/${widget.taskId}'),
+        headers: {'Authorization': 'Bearer ${widget.token}'},
+      )
           .timeout(const Duration(seconds: 20));
 
       if (!mounted) return;
@@ -299,8 +300,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   onPressed: selectedStatus == currentStatus
                       ? null
                       : () {
-                          Navigator.pop(dialogContext, selectedStatus);
-                        },
+                    Navigator.pop(dialogContext, selectedStatus);
+                  },
                   child: const Text('Lưu trạng thái'),
                 ),
               ],
@@ -327,13 +328,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     try {
       final response = await http
           .patch(
-            Uri.parse('$apiUrl/${widget.taskId}/status'),
-            headers: {
-              'Authorization': 'Bearer ${widget.token}',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({'status': newStatus}),
-          )
+        Uri.parse('$apiUrl/${widget.taskId}/status'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'status': newStatus}),
+      )
           .timeout(const Duration(seconds: 20));
 
       if (!mounted) return;
@@ -432,8 +433,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   onPressed: selectedPriority == currentPriority
                       ? null
                       : () {
-                          Navigator.pop(dialogContext, selectedPriority);
-                        },
+                    Navigator.pop(dialogContext, selectedPriority);
+                  },
                   child: const Text('Lưu ưu tiên'),
                 ),
               ],
@@ -460,13 +461,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     try {
       final response = await http
           .patch(
-            Uri.parse('$apiUrl/${widget.taskId}/priority'),
-            headers: {
-              'Authorization': 'Bearer ${widget.token}',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({'priority': newPriority}),
-          )
+        Uri.parse('$apiUrl/${widget.taskId}/priority'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'priority': newPriority}),
+      )
           .timeout(const Duration(seconds: 20));
 
       if (!mounted) return;
@@ -545,7 +546,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           title: const Text('Xác nhận xóa công việc'),
           content: Text(
             'Bạn có chắc chắn muốn xóa "$taskTitle"?\n\n'
-            'Công việc sẽ bị xóa vĩnh viễn và không thể khôi phục.',
+                'Công việc sẽ bị xóa vĩnh viễn và không thể khôi phục.',
           ),
           actions: [
             TextButton(
@@ -582,9 +583,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     try {
       final response = await http
           .delete(
-            Uri.parse('$apiUrl/${widget.taskId}'),
-            headers: {'Authorization': 'Bearer ${widget.token}'},
-          )
+        Uri.parse('$apiUrl/${widget.taskId}'),
+        headers: {'Authorization': 'Bearer ${widget.token}'},
+      )
           .timeout(const Duration(seconds: 20));
 
       if (!mounted) return;
@@ -647,8 +648,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     final currentId = _currentUserId;
     final isPrimary =
         primaryId != null &&
-        currentId != null &&
-        primaryId.toLowerCase() == currentId.toLowerCase();
+            currentId != null &&
+            primaryId.toLowerCase() == currentId.toLowerCase();
 
     String? primaryName;
     final primaryInfo = task['primaryAssignee'];
@@ -805,6 +806,22 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
+  // D6 - Lich su email chi hien thi cho nguoi tao cong viec.
+  Future<void> _openEmailHistory() async {
+    if (!_canManage || _isBusy) return;
+
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => TaskEmailHistoryScreen(
+          token: widget.token,
+          taskId: widget.taskId,
+          taskTitle: _task?['title']?.toString() ?? 'Công việc',
+        ),
+      ),
+    );
+  }
+
   Future<void> _openMembersAndRefresh() async {
     if (!_canManage || _isBusy) return;
     await Navigator.push<void>(
@@ -924,270 +941,300 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             ? const Center(child: CircularProgressIndicator())
             : _error != null
             ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_error!, textAlign: TextAlign.center),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _loadDetail,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Thử lại'),
-                      ),
-                    ],
-                  ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_error!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _loadDetail,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Thử lại'),
                 ),
-              )
+              ],
+            ),
+          ),
+        )
             : task == null
             ? const Center(child: Text('Không có dữ liệu công việc.'))
             : SafeArea(
-                child: Stack(
-                  children: [
-                    ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+          child: Stack(
+            children: [
+              ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                children: [
+                  _sectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _sectionCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                task['title']?.toString() ?? 'Không có tiêu đề',
-                                style: const TextStyle(
-                                  fontSize: 21,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              if ((task['description']?.toString() ?? '')
-                                  .trim()
-                                  .isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  task['description'].toString(),
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFF667487),
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 12),
-                              const Divider(
-                                height: 1,
-                                color: Color(0xFFE9EDF4),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _infoCell(
-                                      label: 'Trạng thái',
-                                      value: _statusLabel(task['status']),
-                                      icon: Icons.pending_actions_outlined,
-                                      onTap: _canEdit && !_isBusy
-                                          ? _openStatusDialog
-                                          : null,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _infoCell(
-                                      label: 'Độ ưu tiên',
-                                      value: _priorityLabel(task['priority']),
-                                      icon: Icons.flag_outlined,
-                                      onTap: _canEdit && !_isBusy
-                                          ? _openPriorityDialog
-                                          : null,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const Divider(
-                                height: 12,
-                                color: Color(0xFFE9EDF4),
-                              ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _infoCell(
-                                      label: 'Ngày bắt đầu',
-                                      value: _dateLabel(task['startDate']),
-                                      icon: Icons.event_available_outlined,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _infoCell(
-                                      label: 'Hạn hoàn thành',
-                                      value: _dateLabel(task['dueDate']),
-                                      icon: Icons.event_outlined,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (_canEdit)
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    'Nhấn vào trạng thái hoặc độ ưu tiên để thay đổi.',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF8793A5),
-                                    ),
-                                  ),
-                                ),
-                            ],
+                        Text(
+                          task['title']?.toString() ?? 'Không có tiêu đề',
+                          style: const TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
+                        if ((task['description']?.toString() ?? '')
+                            .trim()
+                            .isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            task['description'].toString(),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF667487),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 12),
-                        _sectionCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Expanded(
-                                    child: Text(
-                                      'Thành viên & phân quyền',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 9,
-                                      vertical: 5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFEAF0FC),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      '${_assignedCount(task)} người được giao',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: primaryBlue,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 13),
-                              _primaryAssigneeSection(task),
-                              if (_canManage) ...[
-                                const Divider(
-                                  height: 24,
-                                  color: Color(0xFFE9EDF4),
-                                ),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: _isBusy
-                                            ? null
-                                            : _openAssignTask,
-                                        icon: const Icon(
-                                          Icons.group_add_outlined,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Giao việc'),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: primaryBlue,
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                            horizontal: 6,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: _isBusy
-                                            ? null
-                                            : _openShareTask,
-                                        icon: const Icon(
-                                          Icons.share_outlined,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Chia sẻ'),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: primaryBlue,
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                            horizontal: 6,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 5),
-                                _compactAction(
-                                  label: 'Danh sách thành viên',
-                                  icon: Icons.groups_outlined,
-                                  onTap: _isBusy
-                                      ? null
-                                      : _openMembersAndRefresh,
-                                ),
-                                const Divider(
-                                  height: 1,
-                                  color: Color(0xFFF0F2F7),
-                                ),
-                                _compactAction(
-                                  label: 'Quản lý quyền chia sẻ',
-                                  icon: Icons.admin_panel_settings_outlined,
-                                  onTap: _isBusy ? null : _openPermissions,
-                                ),
-                              ],
-                            ],
-                          ),
+                        const Divider(
+                          height: 1,
+                          color: Color(0xFFE9EDF4),
                         ),
-                      ],
-                    ),
-                    if (_isDeleting || _isUpdatingStatus || _isUpdatingPriority)
-                      Positioned.fill(
-                        child: ColoredBox(
-                          color: const Color(0x66000000),
-                          child: Center(
-                            child: Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const CircularProgressIndicator(),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      _isDeleting
-                                          ? 'Đang xóa công việc...'
-                                          : _isUpdatingStatus
-                                          ? 'Đang cập nhật trạng thái...'
-                                          : 'Đang cập nhật độ ưu tiên...',
-                                    ),
-                                  ],
-                                ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _infoCell(
+                                label: 'Trạng thái',
+                                value: _statusLabel(task['status']),
+                                icon: Icons.pending_actions_outlined,
+                                onTap: _canEdit && !_isBusy
+                                    ? _openStatusDialog
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _infoCell(
+                                label: 'Độ ưu tiên',
+                                value: _priorityLabel(task['priority']),
+                                icon: Icons.flag_outlined,
+                                onTap: _canEdit && !_isBusy
+                                    ? _openPriorityDialog
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(
+                          height: 12,
+                          color: Color(0xFFE9EDF4),
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _infoCell(
+                                label: 'Ngày bắt đầu',
+                                value: _dateLabel(task['startDate']),
+                                icon: Icons.event_available_outlined,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _infoCell(
+                                label: 'Hạn hoàn thành',
+                                value: _dateLabel(task['dueDate']),
+                                icon: Icons.event_outlined,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_canEdit)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 4),
+                            child: Text(
+                              'Nhấn vào trạng thái hoặc độ ưu tiên để thay đổi.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF8793A5),
                               ),
                             ),
                           ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _sectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Thành viên & phân quyền',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEAF0FC),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${_assignedCount(task)} người được giao',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: primaryBlue,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 13),
+                        _primaryAssigneeSection(task),
+                        if (_canManage) ...[
+                          const Divider(
+                            height: 24,
+                            color: Color(0xFFE9EDF4),
+                          ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _isBusy
+                                      ? null
+                                      : _openAssignTask,
+                                  icon: const Icon(
+                                    Icons.group_add_outlined,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Giao việc'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: primaryBlue,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 10,
+                                      horizontal: 6,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        10,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _isBusy
+                                      ? null
+                                      : _openShareTask,
+                                  icon: const Icon(
+                                    Icons.share_outlined,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Chia sẻ'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: primaryBlue,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 10,
+                                      horizontal: 6,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        10,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          _compactAction(
+                            label: 'Danh sách thành viên',
+                            icon: Icons.groups_outlined,
+                            onTap: _isBusy
+                                ? null
+                                : _openMembersAndRefresh,
+                          ),
+                          const Divider(
+                            height: 1,
+                            color: Color(0xFFF0F2F7),
+                          ),
+                          _compactAction(
+                            label: 'Quản lý quyền chia sẻ',
+                            icon: Icons.admin_panel_settings_outlined,
+                            onTap: _isBusy ? null : _openPermissions,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (_canManage) ...[
+                    const SizedBox(height: 12),
+                    _sectionCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Thông báo qua email',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          const Text(
+                            'Xem các email đã gửi liên quan đến công việc.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF667487),
+                            ),
+                          ),
+                          _compactAction(
+                            label: 'Lịch sử gửi email',
+                            icon: Icons.mark_email_read_outlined,
+                            onTap: _isBusy ? null : _openEmailHistory,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              if (_isDeleting || _isUpdatingStatus || _isUpdatingPriority)
+                Positioned.fill(
+                  child: ColoredBox(
+                    color: const Color(0x66000000),
+                    child: Center(
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircularProgressIndicator(),
+                              const SizedBox(height: 16),
+                              Text(
+                                _isDeleting
+                                    ? 'Đang xóa công việc...'
+                                    : _isUpdatingStatus
+                                    ? 'Đang cập nhật trạng thái...'
+                                    : 'Đang cập nhật độ ưu tiên...',
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                  ],
+                    ),
+                  ),
                 ),
-              ),
+            ],
+          ),
+        ),
       ),
     );
   }

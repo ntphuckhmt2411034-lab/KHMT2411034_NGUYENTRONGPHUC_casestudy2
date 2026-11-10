@@ -13,6 +13,9 @@ const assignmentRoutes = require('./routes/assignmentRoutes');
 // C3 - API chia se cong viec
 const taskShareRoutes = require('./routes/taskShareRoutes');
 
+// D6 - API xem lich su gui email
+const emailLogRoutes = require('./routes/emailLogRoutes');
+
 // D5 - Tu dong nhac han cong viec
 const {
   sweepTaskReminders
@@ -44,6 +47,9 @@ app.use('/api/tasks', assignmentRoutes);
 
 // Module C3 - Chia se cong viec
 app.use('/api/tasks', taskShareRoutes);
+
+// D6 - Lich su email cua cong viec
+app.use('/api/tasks', emailLogRoutes);
 
 const PORT = process.env.PORT || 5000;
 
