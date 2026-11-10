@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'screens/profile/change_password_screen.dart';
 import 'screens/tasks/task_list_screen.dart';
 import 'screens/notifications/notification_screen.dart';
+import 'screens/statistics/statistics_screen.dart';
 
 void main() {
   runApp(const TaskManagerApp());
@@ -824,6 +825,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     if (mounted) await _loadDashboard();
   }
 
+  Future<void> _openStatistics() async {
+    final token = AuthSession.token;
+
+    if (token == null || token.isEmpty) {
+      showAppMessage(
+        context,
+        'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+      );
+      return;
+    }
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => StatisticsScreen(token: token)));
+
+    if (mounted) {
+      await _loadDashboard();
+    }
+  }
+
   Future<void> _openProfile() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -964,11 +985,30 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           const SizedBox(height: 20),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 9,
-              color: Colors.white,
-              backgroundColor: Colors.white24,
+            child: SizedBox(
+              height: 12,
+              child: total == 0
+                  ? const ColoredBox(color: Colors.white24)
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_notStarted > 0)
+                          Expanded(
+                            flex: _notStarted,
+                            child: const ColoredBox(color: Color(0xFF94A3B8)),
+                          ),
+                        if (_inProgress > 0)
+                          Expanded(
+                            flex: _inProgress,
+                            child: const ColoredBox(color: Color(0xFFF59E0B)),
+                          ),
+                        if (_completed > 0)
+                          Expanded(
+                            flex: _completed,
+                            child: const ColoredBox(color: Color(0xFF16A34A)),
+                          ),
+                      ],
+                    ),
             ),
           ),
           const SizedBox(height: 16),
@@ -1254,6 +1294,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               _openTasks();
             } else if (index == 2) {
               _openProfile();
+            } else if (index == 3) {
+              _openStatistics();
             }
           },
           destinations: const [
@@ -1271,6 +1313,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               icon: Icon(Icons.person_outline),
               selectedIcon: Icon(Icons.person),
               label: 'Tài khoản',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.bar_chart_outlined),
+              selectedIcon: Icon(Icons.bar_chart),
+              label: 'Thống kê',
             ),
           ],
         ),

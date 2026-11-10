@@ -493,11 +493,30 @@ class _TaskListScreenState extends State<TaskListScreen> {
           const SizedBox(height: 9),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 6,
-              backgroundColor: const Color(0xFFDCE7FA),
-              color: const Color(0xFF4E86D4),
+            child: SizedBox(
+              height: 9,
+              child: (pending + inProgress + completed) == 0
+                  ? const ColoredBox(color: Color(0xFFDCE7FA))
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (pending > 0)
+                          Expanded(
+                            flex: pending,
+                            child: const ColoredBox(color: Color(0xFF94A3B8)),
+                          ),
+                        if (inProgress > 0)
+                          Expanded(
+                            flex: inProgress,
+                            child: const ColoredBox(color: Color(0xFFF2B75C)),
+                          ),
+                        if (completed > 0)
+                          Expanded(
+                            flex: completed,
+                            child: const ColoredBox(color: Color(0xFF4C9A7A)),
+                          ),
+                      ],
+                    ),
             ),
           ),
           const SizedBox(height: 10),

@@ -17,6 +17,9 @@ const taskShareRoutes = require('./routes/taskShareRoutes');
 const emailLogRoutes = require('./routes/emailLogRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
+// E1 - API thong ke cong viec
+const statisticsRoutes = require('./routes/statisticsRoutes');
+
 // D5 - Tu dong nhac han cong viec
 const {
   sweepTaskReminders
@@ -53,6 +56,9 @@ app.use('/api/tasks', taskShareRoutes);
 app.use('/api/tasks', emailLogRoutes);
 
 app.use('/api/notifications', notificationRoutes);
+
+// E1 - Thong ke cong viec
+app.use('/api/statistics', statisticsRoutes);
 
 const PORT = process.env.PORT || 5000;
 
