@@ -47,6 +47,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   bool _isUpdatingPriority = false;
   bool _wasUpdated = false;
 
+  // Trạng thái cho tính năng E4 - Lịch sử hoạt động
+  bool _isLoadingActivities = false;
+  List<TaskActivity> _activities = [];
+
   String? _error;
   Map<String, dynamic>? _task;
 
@@ -107,6 +111,42 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   void initState() {
     super.initState();
     _loadDetail();
+    _loadActivities(); // Tự động tải lịch sử hoạt động E4
+  }
+
+  // Hàm tải lịch sử hoạt động (E4)
+  Future<void> _loadActivities() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingActivities = true;
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse('$apiUrl/${widget.taskId}/activities'),
+        headers: {'Authorization': 'Bearer ${widget.token}'},
+      ).timeout(const Duration(seconds: 20));
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        final list = decoded['activities'] ?? decoded;
+        if (list is List) {
+          setState(() {
+            _activities = list.map((item) => TaskActivity.fromJson(item)).toList();
+          });
+        }
+      }
+    } catch (_) {
+      // Bỏ qua lỗi ngầm hoặc xử lý nếu cần
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingActivities = false;
+        });
+      }
+    }
   }
 
   // B2.1 - Xem chi tiet cong viec.
@@ -353,6 +393,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         });
 
         _showMessage('Cập nhật trạng thái thành công!');
+        _loadActivities(); // Tải lại lịch sử sau khi cập nhật
         return;
       }
 
@@ -486,6 +527,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         });
 
         _showMessage('Cập nhật độ ưu tiên thành công!');
+        _loadActivities(); // Tải lại lịch sử sau khi cập nhật
         return;
       }
 
@@ -783,28 +825,33 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
+
   Widget _compactAction({
     required String label,
     required IconData icon,
     required VoidCallback? onTap,
   }) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      dense: true,
-      visualDensity: const VisualDensity(vertical: -2),
-      leading: Icon(icon, size: 21, color: const Color(0xFF4165AD)),
-      title: Text(
-        label,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        visualDensity: const VisualDensity(vertical: -2),
+        leading: Icon(icon, size: 21, color: const Color(0xFF4165AD)),
+        title: Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        ),
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: Color(0xFF9AA6B5),
+          size: 19,
+        ),
+        onTap: onTap,
       ),
-      trailing: const Icon(
-        Icons.chevron_right,
-        color: Color(0xFF9AA6B5),
-        size: 19,
-      ),
-      onTap: onTap,
     );
   }
+
 
   // D6 - Lich su email chi hien thi cho nguoi tao cong viec.
   Future<void> _openEmailHistory() async {
@@ -1173,6 +1220,114 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       ],
                     ),
                   ),
+
+                  // ==========================================
+                  // HIỂN THỊ LỊCH SỬ HOẠT ĐỘNG (E4)
+                  // ==========================================
+                  const SizedBox(height: 12),
+                  _sectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Lịch sử hoạt động',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.refresh, size: 18),
+                              onPressed: _isLoadingActivities ? null : _loadActivities,
+                              tooltip: 'Làm mới lịch sử',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _isLoadingActivities
+                            ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                            : _activities.isEmpty
+                            ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12.0),
+                          child: Text(
+                            'Chưa có lịch sử hoạt động nào.',
+                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                          ),
+                        )
+                            : ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _activities.length,
+                          itemBuilder: (context, index) {
+                            final act = _activities[index];
+
+                            const actionLabels = {
+                              'created': 'Tạo công việc',
+                              'updated': 'Chỉnh sửa công việc',
+                              'deleted': 'Xóa công việc',
+                              'status_changed': 'Thay đổi trạng thái',
+                              'priority_changed': 'Thay đổi độ ưu tiên',
+                              'assigned': 'Giao công việc',
+                              'primary_assignee_changed': 'Thay đổi người phụ trách chính',
+                              'unassigned': 'Hủy giao công việc',
+                              'shared': 'Chia sẻ công việc',
+                              'share_permission_changed': 'Thay đổi quyền chia sẻ',
+                              'share_revoked': 'Thu hồi quyền chia sẻ',
+                            };
+
+                            final actionLabel =
+                                actionLabels[act.action] ?? act.action;
+                            final timeString = '${act.createdAt.toLocal().hour.toString().padLeft(2, '0')}:'
+                                '${act.createdAt.toLocal().minute.toString().padLeft(2, '0')} '
+                                '${act.createdAt.toLocal().day}/${act.createdAt.toLocal().month}/${act.createdAt.toLocal().year}';
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.history, size: 16, color: Color(0xFF3459A6)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          actionLabel,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        if (act.userFullName != null && act.userFullName!.isNotEmpty)
+                                          Text(
+                                            'Thực hiện bởi: ${act.userFullName}',
+                                            style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                          ),
+                                        Text(
+                                          timeString,
+                                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
                   if (_canManage) ...[
                     const SizedBox(height: 12),
                     _sectionCard(
@@ -1239,3 +1394,38 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 }
+
+// Mô hình dữ liệu lịch sử hoạt động (E4)
+class TaskActivity {
+  final String id;
+  final String action;
+  final Map<String, dynamic>? details;
+  final DateTime createdAt;
+  final String? userFullName;
+
+  TaskActivity({
+    required this.id,
+    required this.action,
+    this.details,
+    required this.createdAt,
+    this.userFullName,
+  });
+
+  factory TaskActivity.fromJson(Map<String, dynamic> json) {
+    String? name;
+    final userObj = json['userId'];
+    if (userObj is Map) {
+      name = (userObj['fullName'] ?? userObj['name'])?.toString();
+    }
+    return TaskActivity(
+      id: json['_id']?.toString() ?? '',
+      action: json['action']?.toString() ?? 'Thao tác hệ thống',
+      details: json['details'] is Map ? Map<String, dynamic>.from(json['details']) : null,
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+      userFullName: name,
+    );
+  }
+}
+
+
+

@@ -1,4 +1,4 @@
-
+﻿
 require('dotenv').config();
 
 const express = require('express');
@@ -20,6 +20,9 @@ const notificationRoutes = require('./routes/notificationRoutes');
 // E1 - API thong ke cong viec
 const statisticsRoutes = require('./routes/statisticsRoutes');
 
+// E4 - Lich su hoat dong cong viec
+const taskActivityRoutes = require('./routes/taskActivityRoutes');
+
 // D5 - Tu dong nhac han cong viec
 const {
   sweepTaskReminders
@@ -33,7 +36,7 @@ app.use(cors());
 // API kiem tra server
 app.get('/', (req, res) => {
   res.json({
-    message: 'API TaskManager đang chạy!'
+    message: 'API TaskManager Ä‘ang cháº¡y!'
   });
 });
 
@@ -60,6 +63,9 @@ app.use('/api/notifications', notificationRoutes);
 // E1 - Thong ke cong viec
 app.use('/api/statistics', statisticsRoutes);
 
+// E4 - Lich su hoat dong cong viec
+app.use('/api/tasks', taskActivityRoutes);
+
 const PORT = process.env.PORT || 5000;
 
 // D5 - Kiem tra nhac viec moi 5 phut
@@ -80,7 +86,7 @@ async function runReminderSweep() {
 async function startServer() {
   try {
     if (!process.env.MONGODB_URI) {
-      throw new Error('Thiếu MONGODB_URI trong file .env');
+      throw new Error('Thiáº¿u MONGODB_URI trong file .env');
     }
 
     await mongoose.connect(process.env.MONGODB_URI);
@@ -88,7 +94,7 @@ async function startServer() {
     // D5 - Tao index MongoDB de chong nhac trung
     await mongoose.model('TaskReminder').init();
 
-    console.log('Kết nối MongoDB thành công!');
+    console.log('Káº¿t ná»‘i MongoDB thÃ nh cÃ´ng!');
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
@@ -109,7 +115,7 @@ async function startServer() {
 
   } catch (error) {
     console.error(
-      'Không thể khởi động backend:',
+      'KhÃ´ng thá»ƒ khá»Ÿi Ä‘á»™ng backend:',
       error.message
     );
 
@@ -118,3 +124,4 @@ async function startServer() {
 }
 
 startServer();
+

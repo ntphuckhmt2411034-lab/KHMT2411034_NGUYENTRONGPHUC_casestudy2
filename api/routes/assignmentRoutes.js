@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 
@@ -7,6 +7,7 @@ const User = require('../models/User');
 const { sendAssignmentEmail } = require('../services/emailService');
 const EmailLog = require('../models/EmailLog');
 const { createAssignmentNotification } = require('../services/notificationService');
+const { logTaskActivity } = require('../services/taskActivityService');
 
 const router = express.Router();
 
@@ -248,6 +249,17 @@ router.post('/:id/assignees', requireAuth, async (req, res) => {
     // Luu vao MongoDB truoc khi gui email
     await task.save();
 
+    if (newAssignees.length > 0) {
+      await logTaskActivity({
+        taskId: task._id,
+        userId: req.userId,
+        action: 'assigned',
+        details: {
+          assigneeIds: newAssignees.map(user => user._id)
+        }
+      });
+    }
+
     // D1 - Tao thong bao va luu lich su email cho nguoi moi duoc giao.
     // Loi thong bao/email khong duoc lam that bai viec giao cong viec.
     let emailsAccepted = 0;
@@ -436,8 +448,24 @@ router.patch('/:id/assignees/:userId', requireAuth, async (req, res) => {
       });
     }
 
+    const oldPrimaryAssigneeId = task.primaryAssigneeId
+      ? task.primaryAssigneeId.toString()
+      : null;
+
     task.primaryAssigneeId = user._id;
     await task.save();
+
+    if (oldPrimaryAssigneeId !== user._id.toString()) {
+      await logTaskActivity({
+        taskId: task._id,
+        userId: req.userId,
+        action: 'primary_assignee_changed',
+        details: {
+          oldAssigneeId: oldPrimaryAssigneeId,
+          newAssigneeId: user._id
+        }
+      });
+    }
 
     return res.status(200).json({
       message: 'Chi dinh nguoi phu trach chinh thanh cong',
@@ -537,6 +565,16 @@ router.delete('/:id/assignees/:userId', requireAuth, async (req, res) => {
     // 8. Luu vao MongoDB
     await task.save();
 
+    // E4 - Ghi lich su huy giao viec
+    await logTaskActivity({
+      taskId: task._id,
+      userId: req.userId,
+      action: 'unassigned',
+      details: {
+        removedUserId: userId
+      }
+    });
+
     // 9. Tra ve ket qua
     return res.status(200).json({
       message: 'Huy giao viec thanh cong',
@@ -562,3 +600,7 @@ router.delete('/:id/assignees/:userId', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+
+
+

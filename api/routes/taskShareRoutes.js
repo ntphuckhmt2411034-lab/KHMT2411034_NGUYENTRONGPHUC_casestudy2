@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 
@@ -8,6 +8,7 @@ const TaskShare = require('../models/TaskShare');
 const EmailLog = require('../models/EmailLog');
 const { sendShareInvitationEmail } = require('../services/emailService');
 const { createShareNotification } = require('../services/notificationService');
+const { logTaskActivity } = require('../services/taskActivityService');
 
 const router = express.Router();
 
@@ -171,6 +172,18 @@ router.post('/:id/shares', requireAuth, async (req, res) => {
       }
     }
 
+    // E4 - Ghi lich su chia se cong viec
+    if (newSharedIds.size > 0) {
+      await logTaskActivity({
+        taskId: task._id,
+        userId: req.userId,
+        action: 'shared',
+        details: {
+          sharedWith: [...newSharedIds]
+        }
+      });
+    }
+
     // Khong thay doi du lieu giao viec cua C1, C2
     const shares = await TaskShare.find({
       taskId: task._id,
@@ -327,19 +340,10 @@ router.patch('/:id/shares/:userId/permission', requireAuth, async (req, res) => 
       });
     }
 
-    const share = await TaskShare.findOneAndUpdate(
-      {
-        taskId: task._id,
-        userId: targetUserId
-      },
-      {
-        $set: { permission }
-      },
-      {
-        new: true,
-        runValidators: true
-      }
-    );
+    const share = await TaskShare.findOne({
+      taskId: task._id,
+      userId: targetUserId
+    });
 
     if (!share) {
       return res.status(404).json({
@@ -347,7 +351,26 @@ router.patch('/:id/shares/:userId/permission', requireAuth, async (req, res) => 
       });
     }
 
-    return res.status(200).json({
+    const oldPermission = share.permission;
+
+    share.permission = permission;
+    await share.save();
+
+    // E4 - Ghi lich su thay doi quyen chia se
+    if (oldPermission !== share.permission) {
+      await logTaskActivity({
+        taskId: task._id,
+        userId: req.userId,
+        action: 'share_permission_changed',
+        details: {
+          targetUserId,
+          oldPermission,
+          newPermission: share.permission
+        }
+      });
+    }
+
+return res.status(200).json({
       message: 'Cap nhat quyen thanh cong',
       taskId: task._id,
       userId: targetUserId,
@@ -454,6 +477,17 @@ router.delete('/:id/shares/:userId', requireAuth, async (req, res) => {
       });
     }
 
+    // E4 - Ghi lich su thu hoi quyen chia se
+    await logTaskActivity({
+      taskId: task._id,
+      userId: req.userId,
+      action: 'share_revoked',
+      details: {
+        removedUserId: userId,
+        previousPermission: removedShare.permission
+      }
+    });
+
     // 4. Tra ve thong bao thanh cong
     return res.status(200).json({
       message: 'Thu hoi quyen chia se thanh cong',
@@ -471,3 +505,7 @@ router.delete('/:id/shares/:userId', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+
+
+

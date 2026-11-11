@@ -1,10 +1,11 @@
-
+﻿
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 
 const Task = require('../models/Task');
 const TaskShare = require('../models/TaskShare');
+const { logTaskActivity } = require('../services/taskActivityService');
 
 // D3 - Thong bao khi thong tin quan trong thay doi.
 const {
@@ -339,6 +340,13 @@ router.post('/', requireAuth, async (req, res) => {
       createdBy: req.userId
     });
 
+    await logTaskActivity({
+      taskId: task._id,
+      userId: req.userId,
+      action: 'created',
+      details: { title: task.title }
+    });
+
     return res.status(201).json({
       message: 'Tao cong viec thanh cong',
       task
@@ -550,6 +558,15 @@ router.put('/:id', requireAuth, async (req, res) => {
     // Luu cong viec truoc khi gui thong bao.
     await task.save();
 
+    await logTaskActivity({
+      taskId: task._id,
+      userId: req.userId,
+      action: 'updated',
+      details: {
+        changedFields: fields
+      }
+    });
+
     // =================================================
     // D3 - Thong bao khi thong tin quan trong thay doi
     // =================================================
@@ -637,6 +654,15 @@ router.delete('/:id', requireAuth, async (req, res) => {
       });
     }
 
+    await logTaskActivity({
+      taskId: task._id,
+      userId: req.userId,
+      action: 'deleted',
+      details: {
+        title: task.title
+      }
+    });
+
     return res.status(200).json({
       message: 'Xoa cong viec thanh cong',
       taskId: task._id
@@ -722,6 +748,18 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
 
     task.status = body.status;
     await task.save();
+
+    if (previousStatus !== body.status) {
+      await logTaskActivity({
+        taskId: task._id,
+        userId: req.userId,
+        action: 'status_changed',
+        details: {
+          oldStatus: previousStatus,
+          newStatus: body.status
+        }
+      });
+    }
 
     // D4 - Gui thong bao neu vua hoan thanh.
     const d4 = await processTaskCompletion({
@@ -817,6 +855,18 @@ router.patch('/:id/priority', requireAuth, async (req, res) => {
     task.priority = body.priority;
     await task.save();
 
+    if (oldPriority !== task.priority) {
+      await logTaskActivity({
+        taskId: task._id,
+        userId: req.userId,
+        action: 'priority_changed',
+        details: {
+          oldPriority,
+          newPriority: task.priority
+        }
+      });
+    }
+
     // D3 - Thong bao khi do uu tien thay doi.
     let d3 = {
       changed: [],
@@ -875,3 +925,9 @@ router.patch('/:id/priority', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+
+
+
+
+
