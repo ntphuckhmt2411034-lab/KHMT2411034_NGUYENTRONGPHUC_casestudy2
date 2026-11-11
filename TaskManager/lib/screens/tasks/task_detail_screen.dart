@@ -897,8 +897,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ),
     );
     if (!mounted) return;
-    if (updated == true) _wasUpdated = true;
-    await _loadDetail();
+
+    if (updated == true) {
+      _wasUpdated = true;
+      await _loadDetail();
+
+      if (mounted && _error == null) {
+        _showMessage('Chia sẻ công việc thành công!');
+      }
+    }
   }
 
   Future<void> _openPermissions() async {
